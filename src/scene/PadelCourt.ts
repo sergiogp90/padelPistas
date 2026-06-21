@@ -16,9 +16,9 @@ const LINE_THICKNESS = 0.005
 const BACK_GLASS_H = 3
 const BACK_FENCE_H = 1   // reja 4m: 1m on top of back glass → total 4m
 // Divided into equal panels separated by vertical posts (like the lateral glass joints).
-// 10m width / 4 panels = 2.5m each (4 panels of exactly 2m would only span 8m).
-const BACK_PANELS = 4
-const BACK_PANEL_W = COURT_WIDTH / BACK_PANELS  // 2.5
+// 10m width / 5 panels = 2m each.
+const BACK_PANELS = 5
+const BACK_PANEL_W = COURT_WIDTH / BACK_PANELS  // 2
 
 // Lateral glass 1: 2m × 3m at back corners, + 1m fence on top (same reja 4m)
 const LAT1_LEN = 2

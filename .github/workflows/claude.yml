@@ -39,6 +39,7 @@ jobs:
           # En claude-code-action@v1 los permisos de herramientas se pasan
           # vía claude_args (--allowedTools), NO con el input allowed_tools.
           claude_args: |
+            --model claude-opus-4-8
             --allowedTools "Bash(npm install:*),Bash(npm ci:*),Bash(npm run build:*),Bash(npx tsc:*)"
 
           # This is an optional setting that allows Claude to read CI results on PRs

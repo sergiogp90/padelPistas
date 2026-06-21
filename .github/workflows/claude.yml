@@ -36,6 +36,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
+          # Permite que el workflow se ejecute cuando lo dispara la cuenta-bot
+          # de Claude (por defecto la acción rechaza actores de tipo Bot).
+          allowed_bots: "claude"
+
           # En claude-code-action@v1 los permisos de herramientas se pasan
           # vía claude_args (--allowedTools), NO con el input allowed_tools.
           claude_args: |

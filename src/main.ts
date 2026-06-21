@@ -1,13 +1,12 @@
 import './style.css'
 import * as THREE from 'three'
 import { PadelCourt } from './scene/PadelCourt'
+import { createCamera, frameCourt } from './scene/createCamera'
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x87ceeb)
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000)
-camera.position.set(0, 18, 28)
-camera.lookAt(0, 0, 0)
+const camera = createCamera(window.innerWidth / window.innerHeight)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
@@ -27,6 +26,7 @@ scene.add(directionalLight)
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
+  frameCourt(camera)
   renderer.setSize(window.innerWidth, window.innerHeight)
 })
 

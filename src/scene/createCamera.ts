@@ -28,6 +28,11 @@ const TARGET = new THREE.Vector3(0, 1, 0)
 // Margen alrededor de la pista (1 = ajuste exacto; >1 deja aire).
 const FIT_MARGIN = 1.08
 
+// Fracción de la anchura reservada a la izquierda para el marcador. La pista se
+// encuadra y se centra solo en la franja derecha restante, de modo que quede
+// alineada a la derecha y no tape (ni la tape) el marcador superior izquierdo.
+const LEFT_RESERVE = 0.3
+
 // Esquinas de la caja envolvente de la pista, relativas a TARGET.
 const courtCorners: THREE.Vector3[] = []
 for (const x of [-COURT_WIDTH / 2, COURT_WIDTH / 2]) {
@@ -66,18 +71,29 @@ export function frameCourt(camera: THREE.PerspectiveCamera): void {
   const tanV = Math.tan(THREE.MathUtils.degToRad(FOV) / 2) / FIT_MARGIN
   const tanH = tanV * camera.aspect
 
+  // La pista solo puede usar la franja derecha (1 - LEFT_RESERVE) de la anchura,
+  // así que para el ajuste horizontal el medio-ancho disponible se reduce en esa
+  // misma proporción.
+  const tanHFit = tanH * (1 - LEFT_RESERVE)
+
   // Para cada esquina, la profundidad mínima a la que cabe en el frustum es
-  //   esquina·VIEW_DIR + max(|x|/tanH, |y|/tanV)
+  //   esquina·VIEW_DIR + max(|x|/tanHFit, |y|/tanV)
   // (x, y son las coordenadas laterales/verticales de la esquina respecto a la
   // cámara, independientes de la distancia). Tomamos el máximo sobre todas.
   let distance = 0
   for (const corner of courtCorners) {
     const x = Math.abs(corner.dot(right))
     const y = Math.abs(corner.dot(up))
-    const needed = corner.dot(VIEW_DIR) + Math.max(x / tanH, y / tanV)
+    const needed = corner.dot(VIEW_DIR) + Math.max(x / tanHFit, y / tanV)
     if (needed > distance) distance = needed
   }
 
-  camera.position.copy(VIEW_DIR).multiplyScalar(distance).add(TARGET)
-  camera.lookAt(TARGET)
+  // Desplazamiento lateral (paneo) para centrar la pista en la franja derecha:
+  // mover el eje óptico a la izquierda hace que la pista (en el centro) aparezca
+  // desplazada a la derecha en NDC justo LEFT_RESERVE.
+  const panOffset = right.clone().multiplyScalar(-LEFT_RESERVE * distance * tanH)
+  const target = TARGET.clone().add(panOffset)
+
+  camera.position.copy(VIEW_DIR).multiplyScalar(distance).add(target)
+  camera.lookAt(target)
 }

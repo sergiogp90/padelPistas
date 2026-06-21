@@ -50,7 +50,8 @@
   grid-template-columns: 22vw auto 4vw 6vw;
   align-items: center;
   gap: 1vw;
-  padding: 0.5vw 0;
+  /* Más alto por fila para dar aire al texto de cada pareja. */
+  padding: 0.95vw 0;
 }
 
 .scoreboard__row + .scoreboard__row {

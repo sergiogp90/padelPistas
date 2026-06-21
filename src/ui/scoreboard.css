@@ -2,7 +2,8 @@
  *
  * Pensado para verse en una TV a varios metros de distancia: alto contraste,
  * tipografía grande y unidades relativas a la anchura de la pantalla (vw) para
- * que escale igual en cualquier televisión. */
+ * que escale igual en cualquier televisión. La paleta y la tipografía vienen de
+ * los tokens base (`src/style.css`). */
 
 .scoreboard {
   position: fixed;
@@ -14,11 +15,11 @@
   gap: 0.4vw;
   padding: 1.2vw 1.6vw;
 
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  color: #fff;
-  background: rgba(8, 18, 36, 0.82);
+  font-family: var(--font-family);
+  color: var(--color-text);
+  background: var(--color-surface);
   border-radius: 0.9vw;
-  border: 0.1vw solid rgba(255, 255, 255, 0.12);
+  border: 0.1vw solid var(--color-border);
   box-shadow: 0 0.4vw 2vw rgba(0, 0, 0, 0.45);
 
   /* No interceptar el ratón sobre el canvas 3D. */
@@ -31,7 +32,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #ffd24a;
+  color: var(--color-accent);
   padding-bottom: 0.4vw;
   border-bottom: 0.1vw solid rgba(255, 255, 255, 0.15);
 }
@@ -39,7 +40,7 @@
 .scoreboard__empty {
   font-size: 1.6vw;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--color-text-dim);
   padding-top: 0.6vw;
 }
 
@@ -65,7 +66,7 @@
 .scoreboard__row--header .scoreboard__game {
   font-size: 0.85vw !important;
   font-weight: 600 !important;
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: var(--color-text-faint) !important;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   background: none !important;
@@ -104,7 +105,7 @@
 
 /* Juegos del set en curso: ligeramente resaltados. */
 .scoreboard__game--current {
-  color: #fff;
+  color: var(--color-text);
 }
 
 /* Sets ganados: destacado. */
@@ -113,7 +114,7 @@
   font-size: 2vw;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: #ffd24a;
+  color: var(--color-accent);
 }
 
 /* Punto actual: el elemento más prominente. */
@@ -122,8 +123,8 @@
   font-size: 2.2vw;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: #0a1224;
-  background: #ffd24a;
+  color: var(--color-bg);
+  background: var(--color-accent);
   border-radius: 0.5vw;
   padding: 0.2vw 0.4vw;
 }

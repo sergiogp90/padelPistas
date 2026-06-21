@@ -1,14 +1,65 @@
-* {
+/* Estilos base para visualización en TV.
+ *
+ * Definen la capa de fondo sobre la que se dibuja todo: pantalla completa sin
+ * barras de scroll, fondo oscuro de alto contraste y tipografía grande y
+ * legible desde lejos. Pensado como referencia para Full HD (1920x1080), la
+ * resolución típica de una TV, con unidades relativas a la anchura (vw) para
+ * que escale igual en cualquier televisión.
+ *
+ * Los tokens de `:root` son el origen único de la paleta y la tipografía que
+ * reutiliza el resto de la interfaz (p. ej. el marcador). */
+
+:root {
+  /* Esquema oscuro: el navegador adapta scrollbars y formularios nativos. */
+  color-scheme: dark;
+
+  /* Paleta de alto contraste: fondo oscuro, texto claro y acento cálido. */
+  --color-bg: #060d1a;
+  --color-text: #ffffff;
+  --color-text-dim: rgba(255, 255, 255, 0.7);
+  --color-text-faint: rgba(255, 255, 255, 0.5);
+  --color-accent: #ffd24a;
+  --color-surface: rgba(8, 18, 36, 0.82);
+  --color-border: rgba(255, 255, 255, 0.12);
+
+  /* Tipografía: familia sin serifa del sistema y tamaño base grande (relativo
+   * a la anchura) para que se lea a varios metros de distancia en una TV. */
+  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-size-base: 1.2vw;
+}
+
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-body {
-  overflow: hidden;
-  background: #000;
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
 }
 
+body {
+  /* Layout a pantalla completa, sin barras de scroll. */
+  overflow: hidden;
+
+  background: var(--color-bg);
+  color: var(--color-text);
+
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: 1.3;
+
+  /* Texto nítido en pantallas grandes vistas de cerca por el operador. */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* El canvas 3D ocupa todo el viewport como bloque (sin espacio inline). */
 canvas {
   display: block;
 }

@@ -1,0 +1,129 @@
+/* Marcador overlay: capa HTML/CSS superpuesta al canvas 3D.
+ *
+ * Pensado para verse en una TV a varios metros de distancia: alto contraste,
+ * tipografía grande y unidades relativas a la anchura de la pantalla (vw) para
+ * que escale igual en cualquier televisión. */
+
+.scoreboard {
+  position: fixed;
+  top: 2.5vh;
+  left: 2.5vw;
+  z-index: 10;
+
+  display: inline-grid;
+  gap: 0.4vw;
+  padding: 1.2vw 1.6vw;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #fff;
+  background: rgba(8, 18, 36, 0.82);
+  border-radius: 0.9vw;
+  border: 0.1vw solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0.4vw 2vw rgba(0, 0, 0, 0.45);
+
+  /* No interceptar el ratón sobre el canvas 3D. */
+  pointer-events: none;
+  user-select: none;
+}
+
+.scoreboard__title {
+  font-size: 1.5vw;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd24a;
+  padding-bottom: 0.4vw;
+  border-bottom: 0.1vw solid rgba(255, 255, 255, 0.15);
+}
+
+.scoreboard__empty {
+  font-size: 1.6vw;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  padding-top: 0.6vw;
+}
+
+/* Cada fila: nombres | juegos por set | sets | punto. */
+.scoreboard__row {
+  display: grid;
+  grid-template-columns: 22vw auto 4vw 6vw;
+  align-items: center;
+  gap: 1vw;
+  padding: 0.5vw 0;
+}
+
+.scoreboard__row + .scoreboard__row {
+  border-top: 0.1vw solid rgba(255, 255, 255, 0.1);
+}
+
+/* Cabecera de columnas: pequeña y discreta. */
+.scoreboard__row--header {
+  padding: 0 0 0.2vw;
+}
+
+.scoreboard__label,
+.scoreboard__row--header .scoreboard__game {
+  font-size: 0.85vw !important;
+  font-weight: 600 !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: none !important;
+}
+
+/* Nombres del equipo: jerarquía principal, grande. */
+.scoreboard__names {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.scoreboard__player {
+  font-size: 1.7vw;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Juegos por set: una celda por set, detalle secundario. */
+.scoreboard__games {
+  display: flex;
+  gap: 0.6vw;
+  justify-content: flex-end;
+}
+
+.scoreboard__game {
+  min-width: 2.4vw;
+  text-align: center;
+  font-size: 1.6vw;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Juegos del set en curso: ligeramente resaltados. */
+.scoreboard__game--current {
+  color: #fff;
+}
+
+/* Sets ganados: destacado. */
+.scoreboard__sets {
+  text-align: center;
+  font-size: 2vw;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffd24a;
+}
+
+/* Punto actual: el elemento más prominente. */
+.scoreboard__point {
+  text-align: center;
+  font-size: 2.2vw;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #0a1224;
+  background: #ffd24a;
+  border-radius: 0.5vw;
+  padding: 0.2vw 0.4vw;
+}

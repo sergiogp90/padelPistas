@@ -59,7 +59,11 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* El canvas 3D ocupa todo el viewport como bloque (sin espacio inline). */
+/* El canvas 3D ocupa todo el viewport como capa de fondo. Se posiciona fijo
+ * (en lugar de seguir el flujo del documento) para que no lo desplace ningún
+ * otro elemento del DOM, como el contenedor #app que llena la pantalla. */
 canvas {
   display: block;
+  position: fixed;
+  inset: 0;
 }

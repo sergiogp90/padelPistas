@@ -15,6 +15,10 @@ const LINE_THICKNESS = 0.005
 // Back glass (cristal trasero)
 const BACK_GLASS_H = 3
 const BACK_FENCE_H = 1   // reja 4m: 1m on top of back glass → total 4m
+// Divided into equal panels separated by vertical posts (like the lateral glass joints).
+// 10m width / 4 panels = 2.5m each (4 panels of exactly 2m would only span 8m).
+const BACK_PANELS = 4
+const BACK_PANEL_W = COURT_WIDTH / BACK_PANELS  // 2.5
 
 // Lateral glass 1: 2m × 3m at back corners, + 1m fence on top (same reja 4m)
 const LAT1_LEN = 2
@@ -144,14 +148,29 @@ function buildNet(): THREE.Group {
 
 function buildBackWalls(): THREE.Group {
   // Cristal trasero: 10m wide, 3m glass + 1m fence on top (reja 4m → total 4m height)
+  // The glass is split into BACK_PANELS equal panels separated by vertical posts,
+  // mirroring how the lateral glass panels are separated.
   const group = new THREE.Group()
-  const glassGeo = new THREE.BoxGeometry(COURT_WIDTH, BACK_GLASS_H, 0.05)
+  const panelGeo = new THREE.BoxGeometry(BACK_PANEL_W, BACK_GLASS_H, 0.05)
   const fenceGeo = new THREE.BoxGeometry(COURT_WIDTH, BACK_FENCE_H, 0.05)
+  const postGeo = new THREE.BoxGeometry(0.06, BACK_GLASS_H, 0.08)
 
   for (const z of [-HL, HL]) {
-    const glass = new THREE.Mesh(glassGeo, glassMat)
-    glass.position.set(0, BACK_GLASS_H / 2, z)
-    group.add(glass)
+    // Glass panels, evenly distributed across the 10m width
+    for (let i = 0; i < BACK_PANELS; i++) {
+      const panel = new THREE.Mesh(panelGeo, glassMat)
+      const x = -HW + BACK_PANEL_W / 2 + i * BACK_PANEL_W
+      panel.position.set(x, BACK_GLASS_H / 2, z)
+      group.add(panel)
+    }
+
+    // Vertical separator posts at the joints between panels
+    for (let i = 1; i < BACK_PANELS; i++) {
+      const post = new THREE.Mesh(postGeo, metalMat)
+      const x = -HW + i * BACK_PANEL_W
+      post.position.set(x, BACK_GLASS_H / 2, z)
+      group.add(post)
+    }
 
     const fence = new THREE.Mesh(fenceGeo, fenceMat)
     fence.position.set(0, BACK_GLASS_H + BACK_FENCE_H / 2, z)

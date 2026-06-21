@@ -86,6 +86,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Interlineado holgado y un poco de relleno vertical para que `overflow:
+   * hidden` no recorte los descendentes (la "g" de "Miguel", la "j", etc.). */
+  line-height: 1.4;
+  padding: 0.15vw 0;
 }
 
 /* Juegos por set: una celda por set, detalle secundario. */

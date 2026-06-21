@@ -88,10 +88,12 @@ export function frameCourt(camera: THREE.PerspectiveCamera): void {
     if (needed > distance) distance = needed
   }
 
-  // Desplazamiento lateral (paneo) para centrar la pista en la franja derecha:
-  // mover el eje óptico a la izquierda hace que la pista (en el centro) aparezca
-  // desplazada a la derecha en NDC justo LEFT_RESERVE.
-  const panOffset = right.clone().multiplyScalar(-LEFT_RESERVE * distance * tanH)
+  // Desplazamiento lateral (paneo) para centrar la pista en la franja derecha.
+  // `right` aquí apunta hacia la izquierda de la pantalla (es -cross(up, VIEW_DIR)),
+  // así que desplazar el objetivo en esa dirección mueve el eje óptico a la
+  // izquierda y la pista (centrada en TARGET) aparece desplazada a la derecha en
+  // NDC justo LEFT_RESERVE.
+  const panOffset = right.clone().multiplyScalar(LEFT_RESERVE * distance * tanH)
   const target = TARGET.clone().add(panOffset)
 
   camera.position.copy(VIEW_DIR).multiplyScalar(distance).add(target)

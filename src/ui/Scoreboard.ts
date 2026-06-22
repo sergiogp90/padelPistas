@@ -1,5 +1,6 @@
 import './scoreboard.css';
 import type { Court, Match, Point } from '../types';
+import type { DataSource } from '../data/DataSource';
 
 // Marcador como overlay HTML/CSS superpuesto al canvas 3D.
 //
@@ -117,4 +118,31 @@ export function createScoreboard(court: Court): HTMLElement {
   overlay.appendChild(createTeamRow(court.match, 1));
 
   return overlay;
+}
+
+/**
+ * Monta un marcador en vivo a partir de un `DataSource`: renderiza el estado
+ * actual y se re-renderiza ante cada cambio que emita la fuente. Devuelve un
+ * contenedor estable (listo para insertar en el DOM); el contenido interior se
+ * sustituye de una sola vez por cambio, sin estados intermedios visibles.
+ *
+ * @returns Un objeto con el elemento `el` y `stop()` para cancelar la suscripción.
+ */
+export function mountScoreboard(source: DataSource): {
+  el: HTMLElement;
+  stop: () => void;
+} {
+  const container = document.createElement('div');
+  container.className = 'scoreboard-mount';
+
+  const paint = (court: Court): void => {
+    // Reconstruir el marcador y reemplazar el contenido en un único paso para
+    // evitar parpadeos (no hay momento con el contenedor a medio pintar).
+    container.replaceChildren(createScoreboard(court));
+  };
+
+  paint(source.getCourt());
+  const unsubscribe = source.subscribe(paint);
+
+  return { el: container, stop: unsubscribe };
 }

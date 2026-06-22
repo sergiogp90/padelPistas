@@ -9,7 +9,7 @@ import type { Court, Match, Point } from '../types';
 // (nombres y punto actual) grande, los detalles (juegos por set) más pequeños.
 
 /** Formatea un punto de pádel para mostrarlo (la ventaja se abrevia "Vent."). */
-function formatPoint(point: Point): string {
+export function formatPoint(point: Point): string {
   return point === 'Ventaja' ? 'Vent.' : String(point);
 }
 

@@ -30,8 +30,8 @@ punta (una "rebanada vertical"), priorizando el valor.
 
 | Hito | Entrega | Estado |
 | ---- | ------- | ------ |
-| **M1 — MVP: una pista** | Una pista 3D + marcador legible para TV, con datos *mock* fijos. La base mínima que ya se ve en pantalla. | 🔜 En curso |
-| **M2 — Tiempo real** | Interfaz `DataSource` + fuente *mock* que simula un partido y actualiza el marcador automáticamente. | 📋 Planificado |
+| **M1 — MVP: una pista** | Una pista 3D + marcador legible para TV, con datos *mock* fijos. La base mínima que ya se ve en pantalla. | ✅ Finalizado |
+| **M2 — Tiempo real** | Interfaz `DataSource` + fuente *mock* que simula un partido y actualiza el marcador automáticamente. | 🔜 En curso |
 | **M3 — Multipista** | Sistema de rejilla para mostrar N pistas a la vez. | 📋 Planificado |
 | **M4 — Jugadores** | Avatares estilizados (4 por pista, color por equipo) en posiciones representativas. | 📋 Planificado |
 | **M5 — Modo TV / pulido** | Modo kiosko, auto-recuperación, optimización de rendimiento y estética final. | 📋 Planificado |

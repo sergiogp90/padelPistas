@@ -44,7 +44,7 @@ jobs:
           # vía claude_args (--allowedTools), NO con el input allowed_tools.
           claude_args: |
             --model claude-opus-4-8
-            --allowedTools "Bash(npm install:*),Bash(npm ci:*),Bash(npm run build:*),Bash(npx tsc:*)"
+            --allowedTools "Bash(npm install:*),Bash(npm ci:*),Bash(npm run build:*),Bash(npx tsc:*),Bash(npm test:*),Bash(npm run coverage:*)"
 
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |

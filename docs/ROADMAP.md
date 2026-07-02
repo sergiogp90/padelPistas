@@ -32,8 +32,8 @@ punta (una "rebanada vertical"), priorizando el valor.
 | ---- | ------- | ------ |
 | **M1 — MVP: una pista** | Una pista 3D + marcador legible para TV, con datos *mock* fijos. La base mínima que ya se ve en pantalla. | ✅ Finalizado |
 | **M2 — Tiempo real** | Interfaz `DataSource` + fuente *mock* que simula un partido y actualiza el marcador automáticamente. | ✅ Finalizado |
-| **M3 — Multipista** | Sistema de rejilla para mostrar N pistas a la vez, cada una con su partido en vivo. Un único renderer con un *viewport* por celda. | 🔜 En curso |
-| **M4 — Jugadores** | Avatares estilizados (4 por pista, color por equipo) en posiciones representativas. | 📋 Planificado |
+| **M3 — Multipista** | Sistema de rejilla para mostrar N pistas a la vez, cada una con su partido en vivo. Un único renderer con un *viewport* por celda. | ✅ Finalizado |
+| **M4 — Jugadores** | Avatares estilizados (4 por pista, color por equipo) en posiciones representativas. | 🔜 En curso |
 | **M5 — Modo TV / pulido** | Modo kiosko, auto-recuperación, optimización de rendimiento y estética final. | 📋 Planificado |
 | **M6 — Datos reales** *(futuro)* | Sustituir el *mock* por una fuente real (API o panel de control) implementando la interfaz `DataSource`. | 💡 Idea |
 

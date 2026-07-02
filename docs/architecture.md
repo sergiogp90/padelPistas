@@ -21,6 +21,12 @@ src/
               gridLayout          aritmética de la rejilla de celdas (sin Three.js/DOM)
               MultiCourtRenderer  un único renderer que dibuja cada CourtView en su celda
   ui/       Capa de interfaz superpuesta (marcador)
+  kiosk/    Modo kiosko para TV desatendida:
+              cursorAutoHide  oculta el cursor tras la inactividad
+              inputGuards     bloquea menú contextual y zoom por gesto
+              wakeLock        impide que la pantalla entre en reposo
+              fullscreen      entra a pantalla completa con el primer gesto
+              index           startKioskMode() orquesta las piezas anteriores
   main.ts   Punto de entrada que ensambla todo
 ```
 

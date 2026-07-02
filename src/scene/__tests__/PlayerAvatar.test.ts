@@ -100,18 +100,19 @@ describe('PlayerAvatar', () => {
   })
 
   it('tiene rostro (ojos, nariz y boca) y pelo en la cabeza', () => {
-    const avatar = new PlayerAvatar()
+    // Hombre con pelo: garantiza que hay pelo (los calvos no llevan).
+    const avatar = new PlayerAvatar(0xffffff, { gender: 'male', isBald: false })
     expect(avatar.eyes).toHaveLength(2)
     expect(avatar.nose).toBeInstanceOf(THREE.Mesh)
     expect(avatar.mouth).toBeInstanceOf(THREE.Mesh)
-    expect(avatar.hair).toBeInstanceOf(THREE.Mesh)
+    expect(avatar.hair).toBeInstanceOf(THREE.Object3D)
     // El rostro y el pelo cuelgan de la cabeza para moverse con ella.
     for (const eye of avatar.eyes) {
       expect(eye.parent).toBe(avatar.head)
     }
     expect(avatar.nose.parent).toBe(avatar.head)
     expect(avatar.mouth.parent).toBe(avatar.head)
-    expect(avatar.hair.parent).toBe(avatar.head)
+    expect(avatar.hair!.parent).toBe(avatar.head)
   })
 
   it('la nariz y la boca sobresalen hacia delante (+Z) del rostro', () => {
@@ -277,6 +278,116 @@ describe('PlayerAvatar', () => {
       THREE.Group,
     )
     expect(new PlayerAvatar(0xffffff, { hasCap: false }).cap).toBeNull()
+  })
+
+  describe('diseño por género', () => {
+    const SKIN_HEX = 0xf1c9a5
+    const SHORTS_HEX = 0x33373f
+
+    /** Materiales de los cilindros (muslo/espinilla) bajo las piernas. */
+    function legLimbColors(avatar: PlayerAvatar): number[] {
+      return meshesUnder(avatar.legs)
+        .filter((m) => m.geometry instanceof THREE.CylinderGeometry)
+        .map((m) => (m.material as THREE.MeshStandardMaterial).color.getHex())
+    }
+
+    it('elige el género al azar según el rng cuando no se indica', () => {
+      // rng < 0.5 → hombre; rng >= 0.5 → mujer.
+      expect(new PlayerAvatar(0xffffff, { rng: constantRng(0.2) }).gender).toBe('male')
+      expect(new PlayerAvatar(0xffffff, { rng: constantRng(0.9) }).gender).toBe('female')
+    })
+
+    it('respeta el género indicado por opción', () => {
+      expect(new PlayerAvatar(0xffffff, { gender: 'male' }).gender).toBe('male')
+      expect(new PlayerAvatar(0xffffff, { gender: 'female' }).gender).toBe('female')
+    })
+
+    it('el hombre lleva pelo corto (casquete) o va calvo (sin pelo)', () => {
+      const conPelo = new PlayerAvatar(0xffffff, { gender: 'male', isBald: false })
+      expect(conPelo.isBald).toBe(false)
+      // Pelo corto = un único casquete (malla), no una melena (grupo).
+      expect(conPelo.hair).toBeInstanceOf(THREE.Mesh)
+
+      const calvo = new PlayerAvatar(0xffffff, { gender: 'male', isBald: true })
+      expect(calvo.isBald).toBe(true)
+      expect(calvo.hair).toBeNull()
+      // Sin pelo colgando de la cabeza.
+      expect(calvo.head.children.some((c) => c === calvo.hair)).toBe(false)
+    })
+
+    it('la calvicie es menos probable que tener pelo (umbral bajo)', () => {
+      // Con rng constante, gender y calvicie leen el mismo valor: v < 0.5 → hombre,
+      // v < 0.2 → calvo. Así solo los valores muy bajos producen calvos.
+      expect(new PlayerAvatar(0xffffff, { rng: constantRng(0.1) }).isBald).toBe(true)
+      expect(new PlayerAvatar(0xffffff, { rng: constantRng(0.3) }).isBald).toBe(false)
+    })
+
+    it('la mujer lleva melena larga (grupo con casquete + masa por detrás)', () => {
+      const avatar = new PlayerAvatar(0xffffff, { gender: 'female' })
+      expect(avatar.hair).toBeInstanceOf(THREE.Group)
+      // La melena tiene más de una pieza (casquete + melena por detrás).
+      expect((avatar.hair as THREE.Group).children.length).toBeGreaterThan(1)
+      expect(avatar.isBald).toBe(false)
+    })
+
+    it('la mujer nunca es calva aunque se fuerce isBald', () => {
+      const avatar = new PlayerAvatar(0xffffff, { gender: 'female', isBald: true })
+      expect(avatar.isBald).toBe(false)
+      expect(avatar.hair).not.toBeNull()
+    })
+
+    it('muestra color carne en muslo y espinilla (ambas piezas de la pierna)', () => {
+      for (const gender of ['male', 'female'] as const) {
+        const avatar = new PlayerAvatar(0xff0000, { gender })
+        const colors = legLimbColors(avatar)
+        // Al menos dos segmentos (muslo y espinilla por pierna) en color piel...
+        expect(colors.length).toBeGreaterThanOrEqual(2)
+        expect(colors.every((c) => c === SKIN_HEX)).toBe(true)
+      }
+    })
+
+    it('el hombre lleva calzonas cortas (color propio) y no tiene pecho', () => {
+      const avatar = new PlayerAvatar(0xff0000, { gender: 'male' })
+      expect(avatar.chest).toBeNull()
+      expect(avatar.lowerGarment).toBeInstanceOf(THREE.Mesh)
+      const mat = avatar.lowerGarment.material as THREE.MeshStandardMaterial
+      expect(mat.color.getHex()).toBe(SHORTS_HEX)
+      // La prenda rodea la cadera (por encima de las piernas, por debajo del torso).
+      expect(avatar.lowerGarment.position.y).toBeGreaterThan(0.6)
+      expect(avatar.lowerGarment.position.y).toBeLessThan(1.0)
+    })
+
+    it('la mujer lleva falda deportiva (color de equipo) y curvas en el pecho', () => {
+      const avatar = new PlayerAvatar(0xff0000, { gender: 'female' })
+      // Falda: prenda inferior en color de equipo, acampanada (cono abierto).
+      expect(avatar.lowerGarment).toBeInstanceOf(THREE.Mesh)
+      expect(avatar.lowerGarment.geometry).toBeInstanceOf(THREE.CylinderGeometry)
+      const skirtMat = avatar.lowerGarment.material as THREE.MeshStandardMaterial
+      expect(skirtMat.color.getHex()).toBe(0xff0000)
+      // Pecho: dos volúmenes, sobre el torso y hacia delante (+Z), color de equipo.
+      expect(avatar.chest).toBeInstanceOf(THREE.Group)
+      const busts = meshesUnder(avatar.chest!)
+      expect(busts).toHaveLength(2)
+      for (const bust of busts) {
+        expect(worldPos(bust).z).toBeGreaterThan(0)
+        expect((bust.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0xff0000)
+      }
+    })
+
+    it('setTeamColor recolorea la falda y el pecho de la mujer', () => {
+      const avatar = new PlayerAvatar(0xff0000, { gender: 'female' })
+      avatar.setTeamColor(0x0000ff)
+      expect((avatar.lowerGarment.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0x0000ff)
+      for (const bust of meshesUnder(avatar.chest!)) {
+        expect((bust.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0x0000ff)
+      }
+    })
+
+    it('setTeamColor no altera el color de las calzonas del hombre', () => {
+      const avatar = new PlayerAvatar(0xff0000, { gender: 'male' })
+      avatar.setTeamColor(0x0000ff)
+      expect((avatar.lowerGarment.material as THREE.MeshStandardMaterial).color.getHex()).toBe(SHORTS_HEX)
+    })
   })
 
   describe('micro-movimiento en reposo (idle)', () => {

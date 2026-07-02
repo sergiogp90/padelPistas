@@ -6,13 +6,22 @@ import { PlayerAvatar } from '../PlayerAvatar'
  * Tests estructurales del avatar de jugador.
  *
  * No comprueban el render, sino la geometría construida: que sea un
- * `THREE.Group`, que tenga cuerpo (cápsula) y cabeza (esfera), su escala humana
- * en metros y que el color de equipo llegue al material del cuerpo.
+ * `THREE.Group`, que tenga las partes esperadas (cuerpo, cabeza, rostro, pelo,
+ * brazos, manos, piernas, pala y gorra opcional), su escala humana en metros y
+ * que los colores lleguen a los materiales correctos.
+ *
+ * La aleatoriedad (color de pala y presencia de gorra) se fija inyectando un
+ * `rng` determinista o pasando opciones explícitas.
  */
 
 /** Caja envolvente del avatar en el espacio del mundo. */
 function boundingBox(avatar: THREE.Object3D): THREE.Box3 {
   return new THREE.Box3().setFromObject(avatar)
+}
+
+/** `rng` determinista que siempre devuelve el mismo valor. */
+function constantRng(value: number): () => number {
+  return () => value
 }
 
 describe('PlayerAvatar', () => {
@@ -21,9 +30,8 @@ describe('PlayerAvatar', () => {
     expect(avatar).toBeInstanceOf(THREE.Group)
   })
 
-  it('se compone de cuerpo (cápsula) y cabeza (esfera)', () => {
+  it('tiene cuerpo (cápsula) y cabeza (esfera)', () => {
     const avatar = new PlayerAvatar()
-    expect(avatar.children).toHaveLength(2)
     expect(avatar.body.geometry).toBeInstanceOf(THREE.CapsuleGeometry)
     expect(avatar.head.geometry).toBeInstanceOf(THREE.SphereGeometry)
   })
@@ -42,11 +50,14 @@ describe('PlayerAvatar', () => {
   })
 
   it('tiene escala humana coherente con la pista (~1,7–1,8 m de alto)', () => {
-    const avatar = new PlayerAvatar()
-    const box = boundingBox(avatar)
-    const height = box.max.y - box.min.y
-    expect(height).toBeGreaterThanOrEqual(1.7)
-    expect(height).toBeLessThanOrEqual(1.8)
+    // Se comprueba con y sin gorra: ninguna variante debe salirse del rango.
+    for (const hasCap of [false, true]) {
+      const avatar = new PlayerAvatar(0xffffff, { hasCap })
+      const box = boundingBox(avatar)
+      const height = box.max.y - box.min.y
+      expect(height).toBeGreaterThanOrEqual(1.7)
+      expect(height).toBeLessThanOrEqual(1.8)
+    }
   })
 
   it('apoya los pies sobre el suelo (y ≈ 0)', () => {
@@ -58,5 +69,77 @@ describe('PlayerAvatar', () => {
   it('coloca la cabeza por encima del cuerpo', () => {
     const avatar = new PlayerAvatar()
     expect(avatar.head.position.y).toBeGreaterThan(avatar.body.position.y)
+  })
+
+  it('tiene rostro (dos ojos) y pelo en la cabeza', () => {
+    const avatar = new PlayerAvatar()
+    expect(avatar.eyes).toHaveLength(2)
+    expect(avatar.hair).toBeInstanceOf(THREE.Mesh)
+    // El rostro y el pelo cuelgan de la cabeza para moverse con ella.
+    for (const eye of avatar.eyes) {
+      expect(eye.parent).toBe(avatar.head)
+    }
+    expect(avatar.hair.parent).toBe(avatar.head)
+  })
+
+  it('tiene brazos y dos manos', () => {
+    const avatar = new PlayerAvatar()
+    expect(avatar.hands).toHaveLength(2)
+    // Brazo + antebrazo + mano por lado = 6 elementos como mínimo.
+    expect(avatar.arms.children.length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('tiene dos piernas con pies (rodillas flexionadas hacia delante)', () => {
+    const avatar = new PlayerAvatar()
+    // Muslo + espinilla + pie por pierna = 6 elementos.
+    expect(avatar.legs.children.length).toBeGreaterThanOrEqual(6)
+    // Los pies (cajas) se adelantan respecto de la cadera (z > 0) por la flexión.
+    const feet = avatar.legs.children.filter(
+      (c) => c instanceof THREE.Mesh && c.geometry instanceof THREE.BoxGeometry,
+    )
+    expect(feet).toHaveLength(2)
+    for (const foot of feet) {
+      expect(foot.position.z).toBeGreaterThan(0)
+    }
+  })
+
+  it('sujeta una pala de pádel con ambas manos', () => {
+    const avatar = new PlayerAvatar()
+    expect(avatar.racket).toBeInstanceOf(THREE.Group)
+    expect(avatar.racket.children.length).toBeGreaterThan(0)
+    // Las dos manos están próximas entre sí y por delante del cuerpo (z > 0),
+    // como agarrando el mango.
+    const [left, right] = avatar.hands
+    expect(left.position.z).toBeGreaterThan(0)
+    expect(right.position.z).toBeGreaterThan(0)
+    expect(Math.abs(left.position.x - right.position.x)).toBeLessThan(0.2)
+  })
+
+  it('genera un color de pala aleatorio a partir del rng', () => {
+    const a = new PlayerAvatar(0xffffff, { rng: constantRng(0.1) })
+    const b = new PlayerAvatar(0xffffff, { rng: constantRng(0.8) })
+    expect(a.racketColor.getHex()).not.toBe(b.racketColor.getHex())
+  })
+
+  it('respeta un color de pala explícito', () => {
+    const avatar = new PlayerAvatar(0xffffff, { racketColor: 0x00ff00 })
+    expect(avatar.racketColor.getHex()).toBe(0x00ff00)
+  })
+
+  it('decide la gorra aleatoriamente según el rng', () => {
+    // rng < 0.5 → con gorra; rng >= 0.5 → sin gorra.
+    const conGorra = new PlayerAvatar(0xffffff, { rng: constantRng(0.2) })
+    const sinGorra = new PlayerAvatar(0xffffff, { rng: constantRng(0.9) })
+    expect(conGorra.hasCap).toBe(true)
+    expect(conGorra.cap).toBeInstanceOf(THREE.Mesh)
+    expect(sinGorra.hasCap).toBe(false)
+    expect(sinGorra.cap).toBeNull()
+  })
+
+  it('respeta la presencia de gorra indicada por opción', () => {
+    expect(new PlayerAvatar(0xffffff, { hasCap: true }).cap).toBeInstanceOf(
+      THREE.Mesh,
+    )
+    expect(new PlayerAvatar(0xffffff, { hasCap: false }).cap).toBeNull()
   })
 })

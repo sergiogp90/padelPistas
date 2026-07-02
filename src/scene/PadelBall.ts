@@ -8,6 +8,12 @@ import * as THREE from 'three'
  * única restricción del peloteo): como el destino siempre está en el bando rival,
  * el poseedor alterna de equipo en cada golpe.
  *
+ * Según dónde esté el receptor, el golpe se juega de dos maneras: si el jugador
+ * que va a recibir está **retrasado** (por detrás de la línea de servicio), la
+ * pelota **bota antes en el suelo** (dos arcos encadenados con un pique en medio);
+ * si está **adelantado** (en la red), vuela directa de un golpeo al otro sin tocar
+ * el suelo.
+ *
  * Diseño de la pelota (ver imagen de referencia del issue): esfera de color
  * verde-amarillo (como una pelota de tenis/pádel) con una **costura** blanca
  * ondulada que la recorre, modelada como un tubo fino que sigue una curva sobre
@@ -48,6 +54,20 @@ const MIN_ARC = 1.0
 const ARC_RATIO = 0.18
 // Velocidad de giro de la pelota en vuelo (rad/s) para dar sensación de efecto.
 const SPIN_SPEED = 8
+
+// --- Bote previo cuando el receptor está retrasado ---------------------------
+// Un jugador se considera «retrasado» si su profundidad |z| llega a la línea de
+// servicio (6,95 m de la red, ver `SERVICE_LINE_Z` en `PadelCourt`). Si el que
+// va a recibir está por detrás de ella, la pelota bota una vez en el suelo antes
+// de llegarle; si está adelantado (en la red) vuela directa sin tocar el suelo.
+const BACK_LINE_Z = 6.95
+// Punto del recorrido (fracción de 0 a 1 entre origen y destino) donde la pelota
+// da el bote. Algo más allá del centro para que el segundo salto, hasta el
+// jugador de fondo, sea el más corto (como un globo que pica y sube al resto).
+const BOUNCE_AT = 0.68
+// Altura del segundo arco (tras el bote) respecto al primero: más bajo, porque la
+// pelota pierde energía al botar.
+const SECOND_ARC_RATIO = 0.45
 
 /**
  * Elige al azar el índice de un jugador del **equipo contrario** al del
@@ -92,6 +112,37 @@ export function arcPosition(
   return out
 }
 
+/**
+ * Posición de la pelota en un vuelo **con bote**: dos arcos encadenados, del
+ * origen al punto de bote (en el suelo) y del bote al destino. El progreso `p`
+ * global se reparte en `[0, bounceAt]` para el primer arco y `[bounceAt, 1]` para
+ * el segundo, reescalando cada tramo a `[0, 1]` y reutilizando `arcPosition`. Así
+ * la pelota pica una vez en `bounce` antes de subir hasta el receptor retrasado.
+ * Función pura, comprobable en tests.
+ *
+ * @param arc1 Altura del arco antes del bote.
+ * @param arc2 Altura del arco después del bote.
+ * @param bounceAt Fracción de `p` (0-1) en la que ocurre el bote.
+ * @param p Progreso total del vuelo en [0, 1].
+ */
+export function bouncePosition(
+  from: THREE.Vector3,
+  bounce: THREE.Vector3,
+  to: THREE.Vector3,
+  arc1: number,
+  arc2: number,
+  bounceAt: number,
+  p: number,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  if (p <= bounceAt) {
+    const p1 = bounceAt > 0 ? p / bounceAt : 1
+    return arcPosition(from, bounce, arc1, p1, out)
+  }
+  const p2 = bounceAt < 1 ? (p - bounceAt) / (1 - bounceAt) : 1
+  return arcPosition(bounce, to, arc2, p2, out)
+}
+
 /** Objeto mínimo que la pelota necesita de un jugador: su posición en la pista. */
 interface BallPlayer {
   readonly position: THREE.Vector3
@@ -114,8 +165,14 @@ export class PadelBall extends THREE.Group {
   private targetIndex = 0
   private readonly from = new THREE.Vector3()
   private readonly to = new THREE.Vector3()
+  /** Punto donde la pelota bota (solo cuando el receptor está retrasado). */
+  private readonly bounce = new THREE.Vector3()
+  /** Si el vuelo actual pica en el suelo antes de llegar al receptor. */
+  private bounces = false
   private duration = MIN_FLIGHT
   private arcHeight = MIN_ARC
+  /** Altura del arco tras el bote (solo si `bounces`). */
+  private arcHeight2 = MIN_ARC
   private elapsed = 0
 
   /**
@@ -158,6 +215,15 @@ export class PadelBall extends THREE.Group {
     this.arcHeight = Math.max(MIN_ARC, dist * ARC_RATIO)
     this.duration = MIN_FLIGHT + this.rng() * (MAX_FLIGHT - MIN_FLIGHT)
     this.elapsed = 0
+
+    // Si el receptor está por detrás de la línea de servicio, el vuelo pica una
+    // vez en el suelo (dos arcos con un bote); si está en la red, va directo.
+    this.bounces = Math.abs(target.z) >= BACK_LINE_Z
+    if (this.bounces) {
+      this.bounce.lerpVectors(this.from, this.to, BOUNCE_AT)
+      this.bounce.y = BALL_RADIUS
+      this.arcHeight2 = this.arcHeight * SECOND_ARC_RATIO
+    }
   }
 
   /**
@@ -178,6 +244,17 @@ export class PadelBall extends THREE.Group {
       this.position.copy(this.to)
       this.holderIndex = this.targetIndex
       this.beginFlight()
+    } else if (this.bounces) {
+      bouncePosition(
+        this.from,
+        this.bounce,
+        this.to,
+        this.arcHeight,
+        this.arcHeight2,
+        BOUNCE_AT,
+        p,
+        this.position,
+      )
     } else {
       arcPosition(this.from, this.to, this.arcHeight, p, this.position)
     }

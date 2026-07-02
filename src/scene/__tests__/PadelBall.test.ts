@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { PadelBall, pickOpponent, arcPosition } from '../PadelBall'
+import { PadelBall, pickOpponent, arcPosition, bouncePosition } from '../PadelBall'
 
 /**
  * Tests de la pelota de pádel: la restricción de peloteo (nunca entre
@@ -54,6 +54,77 @@ describe('arcPosition', () => {
   })
 })
 
+describe('bouncePosition', () => {
+  const from = new THREE.Vector3(0, 0.85, -8)
+  const bounce = new THREE.Vector3(0, 0.06, 1)
+  const to = new THREE.Vector3(0, 0.85, 8)
+  const out = new THREE.Vector3()
+  const AT = 0.68
+
+  it('en los extremos coincide con origen y destino', () => {
+    bouncePosition(from, bounce, to, 2, 1, AT, 0, out)
+    expect(out.x).toBeCloseTo(from.x, 5)
+    expect(out.y).toBeCloseTo(from.y, 5)
+    expect(out.z).toBeCloseTo(from.z, 5)
+    bouncePosition(from, bounce, to, 2, 1, AT, 1, out)
+    expect(out.x).toBeCloseTo(to.x, 5)
+    expect(out.y).toBeCloseTo(to.y, 5)
+    expect(out.z).toBeCloseTo(to.z, 5)
+  })
+
+  it('en el instante del bote toca el punto de bote (en el suelo)', () => {
+    bouncePosition(from, bounce, to, 2, 1, AT, AT, out)
+    expect(out.x).toBeCloseTo(bounce.x, 5)
+    expect(out.z).toBeCloseTo(bounce.z, 5)
+    expect(out.y).toBeCloseTo(bounce.y, 5)
+  })
+
+  it('sube por encima del suelo entre los golpeos y el bote', () => {
+    // A mitad del primer arco la pelota está claramente por encima del bote.
+    bouncePosition(from, bounce, to, 2, 1, AT, AT / 2, out)
+    expect(out.y).toBeGreaterThan(bounce.y)
+  })
+})
+
+/** Índice mínimo de `y` que alcanza la pelota durante su primer vuelo (~0,68 s). */
+function minYDuringFirstFlight(ball: PadelBall): number {
+  let minY = Infinity
+  // rng=()=>0 fija la duración del vuelo en 0,7 s; recorremos justo por debajo.
+  for (let t = 0; t < 0.68; t += 0.02) {
+    ball.update(0.02)
+    minY = Math.min(minY, ball.position.y)
+  }
+  return minY
+}
+
+describe('PadelBall — bote según la posición del receptor', () => {
+  it('bota antes en el suelo si el receptor está retrasado', () => {
+    // Poseedor en la red; sus dos rivales están al fondo (|z| ≥ línea de saque).
+    const players = [
+      { position: new THREE.Vector3(-2.5, 0, -3) }, // equipo 0 (saca este)
+      { position: new THREE.Vector3(2.5, 0, -3) }, // equipo 0
+      { position: new THREE.Vector3(-2.5, 0, 8) }, // equipo 1 (retrasado)
+      { position: new THREE.Vector3(2.5, 0, 8) }, // equipo 1 (retrasado)
+    ]
+    const ball = new PadelBall(players, [0, 0, 1, 1] as const, { rng: () => 0 })
+    // El primer golpe va a un rival retrasado: la pelota debe picar cerca del suelo.
+    expect(minYDuringFirstFlight(ball)).toBeLessThan(0.2)
+  })
+
+  it('no bota si el receptor está adelantado (en la red)', () => {
+    // Todos los rivales del poseedor están en la red: vuelo directo, sin bote.
+    const players = [
+      { position: new THREE.Vector3(-2.5, 0, -3) }, // equipo 0 (saca este)
+      { position: new THREE.Vector3(2.5, 0, -3) }, // equipo 0
+      { position: new THREE.Vector3(-2.5, 0, 3) }, // equipo 1 (en la red)
+      { position: new THREE.Vector3(2.5, 0, 3) }, // equipo 1 (en la red)
+    ]
+    const ball = new PadelBall(players, [0, 0, 1, 1] as const, { rng: () => 0 })
+    // Vuelo directo: la parábola solo sube, nunca se acerca al suelo.
+    expect(minYDuringFirstFlight(ball)).toBeGreaterThan(0.5)
+  })
+})
+
 describe('PadelBall', () => {
   it('es un THREE.Group con la esfera y la costura', () => {
     const ball = new PadelBall(makePlayers(), TEAMS, { rng: () => 0.5 })
@@ -89,10 +160,15 @@ describe('PadelBall', () => {
     let prev = -1
     for (let i = 0; i < 2000; i++) {
       ball.update(0.05)
-      // Detecta cuándo la pelota está en un punto de golpeo (y ≈ altura base).
+      // Detecta un golpeo: la pelota a la altura base (y ≈ 0,85) Y pegada a un
+      // jugador. La condición de proximidad es necesaria porque, en los vuelos
+      // con bote, la pelota vuelve a cruzar esa altura a media pista (sin ser un
+      // golpeo), y ahí no está cerca de nadie.
       if (Math.abs(ball.position.y - 0.85) < 0.02) {
         const nearest = nearestPlayer(players, ball.position)
-        if (nearest !== prev) {
+        const np = players[nearest].position
+        const d = Math.hypot(np.x - ball.position.x, np.z - ball.position.z)
+        if (d < 0.5 && nearest !== prev) {
           holders.push(nearest)
           prev = nearest
         }

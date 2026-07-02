@@ -2,8 +2,8 @@ import './style.css'
 import * as THREE from 'three'
 import { PadelCourt } from './scene/PadelCourt'
 import { createCamera, frameCourt } from './scene/createCamera'
-import { createScoreboard } from './ui/Scoreboard'
-import { mockCourt } from './data/mockCourt'
+import { mountScoreboard } from './ui/Scoreboard'
+import { MockDataSource } from './data/MockDataSource'
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x87ceeb)
@@ -15,8 +15,12 @@ renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.setPixelRatio(window.devicePixelRatio)
 document.body.appendChild(renderer.domElement)
 
-// Marcador overlay (HTML/CSS sobre el canvas), alimentado por los datos mock.
-document.body.appendChild(createScoreboard(mockCourt))
+// Marcador overlay (HTML/CSS sobre el canvas), alimentado por un `DataSource`.
+// La UI no conoce el origen de los datos: se suscribe y se re-renderiza sola
+// según avanza el partido simulado.
+const dataSource = new MockDataSource()
+document.body.appendChild(mountScoreboard(dataSource).el)
+dataSource.start()
 
 const court = new PadelCourt()
 scene.add(court)

@@ -55,6 +55,22 @@ const SOCK_COLOR = 0xf5f5f5 // espinillas
 const SHOE_COLOR = 0xdedede // pies
 const HANDLE_COLOR = 0x222222 // mango de la pala
 
+// --- Micro-movimiento en reposo (idle) ---------------------------------------
+// Cada avatar oscila suavemente alrededor de su posición base para dar
+// sensación de actividad sin simular el juego. El desplazamiento se limita al
+// plano del suelo (X/Z) y se mantiene dentro de un radio muy pequeño. La
+// desincronización entre jugadores se consigue con amplitudes, frecuencias y
+// fases distintas generadas con el `rng` de cada avatar.
+
+// Amplitud total (m) del vaivén, repartida entre los ejes X y Z. Se mantiene
+// muy por debajo del tope de 0,3 m del hito: como |offset| ≤ ampX + ampZ =
+// amplitud total, ningún jugador se aleja más de este radio de su base.
+const IDLE_MIN_AMPLITUDE = 0.08
+const IDLE_MAX_AMPLITUDE = 0.22
+// Frecuencias angulares lentas (rad/s) → oscilación suave, sin nerviosismo.
+const IDLE_MIN_FREQ = 0.5
+const IDLE_MAX_FREQ = 1.3
+
 export interface PlayerAvatarOptions {
   /** Color de la pala. Si se omite, se genera aleatoriamente. */
   racketColor?: THREE.ColorRepresentation
@@ -88,6 +104,24 @@ export class PlayerAvatar extends THREE.Group {
   /** Malla de la gorra, o `null` si no lleva. */
   readonly cap: THREE.Mesh | null
 
+  /**
+   * Posición alrededor de la cual oscila el avatar. Se captura de forma
+   * perezosa la primera vez que se llama a `update()`, para respetar la
+   * posición que le asigne quien lo coloque en la pista tras construirlo.
+   */
+  readonly basePosition = new THREE.Vector3()
+  private baseCaptured = false
+  private idleTime = 0
+  // Parámetros del vaivén en reposo (amplitud/frecuencia/fase por eje).
+  private readonly idle: {
+    ampX: number
+    ampZ: number
+    freqX: number
+    freqZ: number
+    phaseX: number
+    phaseZ: number
+  }
+
   constructor(
     teamColor: THREE.ColorRepresentation = 0xffffff,
     options: PlayerAvatarOptions = {},
@@ -104,6 +138,21 @@ export class PlayerAvatar extends THREE.Group {
 
     // Gorra: la indicada, o decidida al azar.
     this.hasCap = options.hasCap ?? rng() < 0.5
+
+    // Parámetros del micro-movimiento en reposo. La amplitud total se reparte
+    // entre X y Z, y frecuencias/fases se generan al azar para que cada jugador
+    // se mueva con su propio ritmo (desincronizado respecto de los demás).
+    const lerp = (min: number, max: number) => min + rng() * (max - min)
+    const amplitude = lerp(IDLE_MIN_AMPLITUDE, IDLE_MAX_AMPLITUDE)
+    const split = lerp(0.35, 0.65) // reparto X/Z (evita ejes degenerados)
+    this.idle = {
+      ampX: amplitude * split,
+      ampZ: amplitude * (1 - split),
+      freqX: lerp(IDLE_MIN_FREQ, IDLE_MAX_FREQ),
+      freqZ: lerp(IDLE_MIN_FREQ, IDLE_MAX_FREQ),
+      phaseX: rng() * Math.PI * 2,
+      phaseZ: rng() * Math.PI * 2,
+    }
 
     // Cuerpo y cabeza.
     this.body = buildBody(teamColor)
@@ -140,6 +189,38 @@ export class PlayerAvatar extends THREE.Group {
   /** Cambia el color de equipo aplicado al material del cuerpo. */
   setTeamColor(teamColor: THREE.ColorRepresentation): void {
     ;(this.body.material as THREE.MeshStandardMaterial).color.set(teamColor)
+  }
+
+  /**
+   * Radio máximo (m) del micro-movimiento en reposo. Como el desplazamiento es
+   * `ampX·sin(...)` en X y `ampZ·sin(...)` en Z, su distancia a la base nunca
+   * supera `ampX + ampZ`; este valor es siempre ≤ 0,3 m (tope del hito).
+   */
+  get idleRadius(): number {
+    return this.idle.ampX + this.idle.ampZ
+  }
+
+  /**
+   * Avanza el micro-movimiento en reposo del avatar un fotograma. Desplaza al
+   * jugador suavemente dentro de un radio pequeño (`idleRadius`) alrededor de su
+   * posición base —la que tenía la primera vez que se llamó—, en el plano del
+   * suelo (X/Z), sin tocar la altura.
+   *
+   * El desplazamiento depende solo del tiempo acumulado, no del número de pasos:
+   * aplicar el mismo `delta` total en uno o en muchos fotogramas produce la
+   * misma posición, de modo que la animación es independiente de los FPS.
+   *
+   * @param delta Segundos transcurridos desde el fotograma anterior.
+   */
+  update(delta: number): void {
+    if (!this.baseCaptured) {
+      this.basePosition.copy(this.position)
+      this.baseCaptured = true
+    }
+    this.idleTime += delta
+    const { ampX, ampZ, freqX, freqZ, phaseX, phaseZ } = this.idle
+    this.position.x = this.basePosition.x + ampX * Math.sin(freqX * this.idleTime + phaseX)
+    this.position.z = this.basePosition.z + ampZ * Math.sin(freqZ * this.idleTime + phaseZ)
   }
 }
 

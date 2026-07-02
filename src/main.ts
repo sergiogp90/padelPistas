@@ -1,7 +1,7 @@
 import './style.css'
 import { CourtView } from './scene/CourtView'
 import { MultiCourtRenderer } from './scene/MultiCourtRenderer'
-import { computeCssCells, gridShape } from './scene/gridLayout'
+import { gridShape } from './scene/gridLayout'
 import { createMockDataSources } from './data/createMockDataSources'
 
 // Número de pistas a mostrar en la rejilla multipista.
@@ -16,24 +16,25 @@ const app = new MultiCourtRenderer()
 document.body.appendChild(app.domElement)
 app.setViews(views)
 
-// Marcadores overlay: uno por celda, colocados sobre el viewport de su pista.
-// Cada marcador se envuelve en un contenedor posicionado según la celda (en %,
-// origen arriba-izquierda) y se escala según el número de columnas para que
-// quepa en su celda sin invadir a las vecinas.
-const { cols } = gridShape(COURT_COUNT)
-const cells = computeCssCells(COURT_COUNT)
-views.forEach((view, i) => {
-  const cell = cells[i]
-  const overlay = document.createElement('div')
-  overlay.className = 'court-overlay'
-  overlay.style.left = `${cell.x * 100}%`
-  overlay.style.top = `${cell.y * 100}%`
-  overlay.style.width = `${cell.width * 100}%`
-  overlay.style.height = `${cell.height * 100}%`
-  overlay.style.setProperty('--court-scale', String(1 / cols))
-  overlay.appendChild(view.scoreboardEl)
-  document.body.appendChild(overlay)
+// Marcadores overlay: una rejilla CSS a pantalla completa con la misma forma
+// (columnas × filas) que usa el renderer para los viewports. El navegador
+// reparte las celdas —que se autoubican en el mismo orden en que se pintan las
+// pistas—, así que aquí basta con fijar `--cols`/`--rows` y meter un marcador
+// por celda; la aritmética de la rejilla no se duplica. La escala se reduce
+// según el número de columnas para que cada marcador quepa en su celda.
+const { cols, rows } = gridShape(COURT_COUNT)
+const grid = document.createElement('div')
+grid.className = 'courts-grid'
+grid.style.setProperty('--cols', String(cols))
+grid.style.setProperty('--rows', String(rows))
+grid.style.setProperty('--court-scale', String(1 / cols))
+views.forEach((view) => {
+  const cell = document.createElement('div')
+  cell.className = 'court-cell'
+  cell.appendChild(view.scoreboardEl)
+  grid.appendChild(cell)
 })
+document.body.appendChild(grid)
 
 window.addEventListener('resize', () => {
   app.resize(window.innerWidth, window.innerHeight)

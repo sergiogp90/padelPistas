@@ -4,16 +4,35 @@ import * as THREE from 'three'
  * Avatar de jugador estilizado (low-poly).
  *
  * Figura humana simple y reutilizable pensada para poblar la pista sin recurrir
- * a modelos realistas (ver decisión de arquitectura «avatares estilizados»).
- * Se construye con primitivas de Three.js (cápsulas, esferas, cilindros y
- * cajas) manteniendo un recuento de polígonos bajo.
+ * a modelos realistas (ver decisión de arquitectura «avatares estilizados»). Se
+ * construye por completo con primitivas de Three.js y geometría procedural
+ * (cápsulas, esferas, cilindros, cajas y formas 2D), manteniendo un recuento de
+ * polígonos bajo para poder mostrar decenas de avatares en la rejilla multipista.
  *
  * Anatomía representada:
- *  - Cuerpo (cápsula) con el **color de equipo** en su material.
- *  - Cabeza (esfera) con **rostro** (ojos) y **pelo**.
+ *  - **Torso** (cápsula) con el **color de equipo**, rematado por unos
+ *    **hombros** anchos y un **cuello** que lo unen con la cabeza para suavizar
+ *    la silueta (menos aspecto de «piezas sueltas»).
+ *  - **Cabeza** (esfera) con **rostro** (ojos, nariz y boca) y **pelo**.
  *  - **Brazos** y **manos** que sujetan una **pala de pádel** con ambas manos.
+ *    Las manos insinúan **dedos** agarrando el mango (ya no son esferas lisas).
  *  - **Piernas** con las rodillas ligeramente flexionadas (posición de resto).
+ *    Una **pelvis** enlaza el torso con ambos muslos (la cadera) y hay **esferas
+ *    de articulación** en cadera, rodilla y tobillo que redondean las uniones.
  *  - **Gorra** opcional, determinada aleatoriamente al crear el avatar.
+ *
+ * **Jerarquía por articulaciones (pensada para un rig futuro):** brazos y
+ * piernas se organizan en grupos anidados hombro→codo→mano y cadera→rodilla→pie,
+ * de modo que cada articulación es un `THREE.Group` propio. Hoy solo se
+ * construyen en pose estática, pero la estructura permitiría animarlas más
+ * adelante sin rehacer la geometría.
+ *
+ * **Pala:** cara **redonda y con grosor** (disco extruido, `ExtrudeGeometry`,
+ * con el canto biselado para que se note el volumen), un **puente triangular**
+ * hacia el mango y un **grip** oscuro diferenciado. Los **agujeros** de la cara
+ * se resuelven con una **textura de transparencia** (`alphaMap` procedural),
+ * **no** con geometría perforada, para no disparar el recuento de triángulos con
+ * 36 avatares en pantalla.
  *
  * La pala recibe un color generado aleatoriamente en cada avatar. Tanto el
  * color de la pala como la presencia de gorra pueden fijarse por opciones (o
@@ -36,6 +55,7 @@ const BODY_RADIUS = 0.17
 const BODY_TOTAL_H = 0.64
 const BODY_CENTER_Y = HIP_Y + BODY_TOTAL_H / 2 // 1.17 → torso de 0.85 a 1.49
 const CYLINDER_LENGTH = BODY_TOTAL_H - 2 * BODY_RADIUS // 0.30
+const BODY_TOP_Y = HIP_Y + BODY_TOTAL_H // 1.49 → hombros/cuello
 
 // Cabeza: esfera apoyada sobre el cuerpo; su coronilla marca AVATAR_HEIGHT.
 const HEAD_RADIUS = 0.14
@@ -50,10 +70,11 @@ const LIMB_SEGMENTS = 6
 const SKIN_COLOR = 0xf1c9a5 // cabeza y manos
 const HAIR_COLOR = 0x2e1c10
 const EYE_COLOR = 0x1a1a1a
+const MOUTH_COLOR = 0x8a4b3c
 const SHORTS_COLOR = 0x33373f // muslos
 const SOCK_COLOR = 0xf5f5f5 // espinillas
 const SHOE_COLOR = 0xdedede // pies
-const HANDLE_COLOR = 0x222222 // mango de la pala
+const HANDLE_COLOR = 0x1b1b1b // grip (puño) de la pala, oscuro
 
 // --- Micro-movimiento en reposo (idle) ---------------------------------------
 // Cada avatar se mueve alrededor de su posición base para dar sensación de
@@ -93,26 +114,36 @@ export interface PlayerAvatarOptions {
 export class PlayerAvatar extends THREE.Group {
   /** Malla del cuerpo, cuyo material lleva el color del equipo. */
   readonly body: THREE.Mesh
+  /** Hombros anchos que rematan el torso (color de equipo). */
+  readonly shoulders: THREE.Mesh
+  /** Cuello que une el torso con la cabeza. */
+  readonly neck: THREE.Mesh
   /** Malla de la cabeza. */
   readonly head: THREE.Mesh
-  /** Grupo con muslos, espinillas y pies (piernas flexionadas). */
+  /** Grupo con las dos piernas (jerarquía cadera→rodilla→pie por lado). */
   readonly legs: THREE.Group
-  /** Grupo con brazos y manos. */
+  /** Grupo con los dos brazos (jerarquía hombro→codo→mano por lado). */
   readonly arms: THREE.Group
-  /** Las dos manos que agarran la pala. */
+  /** Las dos manos (palmas) que agarran la pala. */
   readonly hands: THREE.Mesh[]
-  /** Grupo con la pala de pádel (mango + cabeza). */
+  /** Grupo con la pala de pádel (mango + puente + cara con agujeros). */
   readonly racket: THREE.Group
-  /** Color aplicado a la cabeza de la pala. */
+  /** Cara redonda y con grosor de la pala (con `alphaMap` de agujeros). */
+  readonly racketFace: THREE.Mesh
+  /** Color aplicado a la cara de la pala. */
   readonly racketColor: THREE.Color
   /** Ojos del rostro. */
   readonly eyes: THREE.Mesh[]
+  /** Nariz del rostro. */
+  readonly nose: THREE.Mesh
+  /** Boca del rostro. */
+  readonly mouth: THREE.Mesh
   /** Pelo (casquete). */
   readonly hair: THREE.Mesh
   /** Si el avatar lleva gorra. */
   readonly hasCap: boolean
-  /** Malla de la gorra, o `null` si no lleva. */
-  readonly cap: THREE.Mesh | null
+  /** Grupo de la gorra (copa + visera), o `null` si no lleva. */
+  readonly cap: THREE.Group | null
 
   /**
    * Posición alrededor de la cual oscila el avatar. Se captura de forma
@@ -170,14 +201,20 @@ export class PlayerAvatar extends THREE.Group {
       bobPhase: rng() * Math.PI * 2,
     }
 
-    // Cuerpo y cabeza.
+    // Torso, hombros y cuello (color de equipo en torso y hombros).
     this.body = buildBody(teamColor)
+    this.shoulders = buildShoulders(teamColor)
+    this.neck = buildNeck()
     this.head = buildHead()
 
     // Rostro y pelo (hijos de la cabeza para moverse con ella).
     this.eyes = buildEyes()
+    this.nose = buildNose()
+    this.mouth = buildMouth()
     this.hair = buildHair()
     this.eyes.forEach((eye) => this.head.add(eye))
+    this.head.add(this.nose)
+    this.head.add(this.mouth)
     this.head.add(this.hair)
 
     // Gorra opcional (también hija de la cabeza).
@@ -188,23 +225,28 @@ export class PlayerAvatar extends THREE.Group {
       this.cap = null
     }
 
-    // Extremidades y pala.
+    // Extremidades (jerarquía articulada) y pala.
     this.legs = buildLegs()
     const armsBuild = buildArms()
     this.arms = armsBuild.group
     this.hands = armsBuild.hands
-    this.racket = buildRacket(this.racketColor)
+    const racketBuild = buildRacket(this.racketColor)
+    this.racket = racketBuild.group
+    this.racketFace = racketBuild.face
 
     this.add(this.legs)
     this.add(this.body)
+    this.add(this.shoulders)
+    this.add(this.neck)
     this.add(this.arms)
     this.add(this.head)
     this.add(this.racket)
   }
 
-  /** Cambia el color de equipo aplicado al material del cuerpo. */
+  /** Cambia el color de equipo aplicado a torso y hombros. */
   setTeamColor(teamColor: THREE.ColorRepresentation): void {
     ;(this.body.material as THREE.MeshStandardMaterial).color.set(teamColor)
+    ;(this.shoulders.material as THREE.MeshStandardMaterial).color.set(teamColor)
   }
 
   /**
@@ -255,6 +297,29 @@ function buildBody(teamColor: THREE.ColorRepresentation): THREE.Mesh {
   const mat = new THREE.MeshStandardMaterial({ color: teamColor })
   const mesh = new THREE.Mesh(geo, mat)
   mesh.position.y = BODY_CENTER_Y
+  // Cintura algo más estrecha que el pecho: aplana ligeramente la parte baja
+  // del torso para insinuar la silueta (más forma, menos «tubo»).
+  mesh.scale.set(1.0, 1.0, 0.85)
+  return mesh
+}
+
+function buildShoulders(teamColor: THREE.ColorRepresentation): THREE.Mesh {
+  // Cápsula horizontal sobre el torso: ensancha los hombros y suaviza la unión
+  // con los brazos (menos aspecto de cilindros sueltos).
+  const geo = new THREE.CapsuleGeometry(0.1, 0.24, BODY_SEGMENTS / 2, BODY_SEGMENTS)
+  const mat = new THREE.MeshStandardMaterial({ color: teamColor })
+  const mesh = new THREE.Mesh(geo, mat)
+  mesh.rotation.z = Math.PI / 2 // tumbada de hombro a hombro (eje X)
+  mesh.scale.set(1.0, 1.0, 0.8)
+  mesh.position.set(0, BODY_TOP_Y - 0.03, 0)
+  return mesh
+}
+
+function buildNeck(): THREE.Mesh {
+  const geo = new THREE.CylinderGeometry(0.06, 0.07, 0.1, LIMB_SEGMENTS)
+  const mat = new THREE.MeshStandardMaterial({ color: SKIN_COLOR })
+  const mesh = new THREE.Mesh(geo, mat)
+  mesh.position.y = BODY_TOP_Y + 0.02
   return mesh
 }
 
@@ -272,9 +337,29 @@ function buildEyes(): THREE.Mesh[] {
   const geo = new THREE.SphereGeometry(0.022, 8, 8)
   return [-0.05, 0.05].map((x) => {
     const eye = new THREE.Mesh(geo, mat)
-    eye.position.set(x, 0.02, HEAD_RADIUS - 0.01)
+    eye.position.set(x, 0.03, HEAD_RADIUS - 0.01)
     return eye
   })
+}
+
+function buildNose(): THREE.Mesh {
+  // Pequeño cono saliente centrado bajo los ojos (color piel).
+  const geo = new THREE.ConeGeometry(0.022, 0.05, LIMB_SEGMENTS)
+  const mat = new THREE.MeshStandardMaterial({ color: SKIN_COLOR })
+  const nose = new THREE.Mesh(geo, mat)
+  // Apunta hacia delante (+Z): girar el cono (eje +Y) 90° sobre X.
+  nose.rotation.x = Math.PI / 2
+  nose.position.set(0, 0.0, HEAD_RADIUS + 0.005)
+  return nose
+}
+
+function buildMouth(): THREE.Mesh {
+  // Boca insinuada: caja fina y ancha bajo la nariz.
+  const geo = new THREE.BoxGeometry(0.06, 0.015, 0.02)
+  const mat = new THREE.MeshStandardMaterial({ color: MOUTH_COLOR })
+  const mouth = new THREE.Mesh(geo, mat)
+  mouth.position.set(0, -0.06, HEAD_RADIUS - 0.005)
+  return mouth
 }
 
 function buildHair(): THREE.Mesh {
@@ -295,65 +380,126 @@ function buildHair(): THREE.Mesh {
   return hair
 }
 
-function buildCap(teamColor: THREE.ColorRepresentation): THREE.Mesh {
-  // Copa: media esfera sobre la coronilla (hija de la cabeza).
+// Inclinación de la copa hacia atrás (rad). Un borde horizontal no puede quedar
+// a la vez por encima de los ojos (delante) y por debajo del pelo (detrás), así
+// que se inclina la copa: el borde delantero sube y el trasero baja.
+const CAP_TILT = 0.6
+
+function buildCap(teamColor: THREE.ColorRepresentation): THREE.Group {
+  const group = new THREE.Group()
+  const mat = new THREE.MeshStandardMaterial({ color: teamColor })
+
+  // Copa: casquete esférico claramente mayor que la cabeza. El radio debe superar
+  // el alcance del pelo (que va 0,01 hacia atrás, llegando a ~0,158 del centro),
+  // o el pelo asomaría por fuera de la copa por detrás. Baja un poco por debajo
+  // del ecuador (thetaLength > π/2) para tapar el pelo por los lados y, con la
+  // inclinación hacia atrás, cae más por detrás cubriendo la nuca; el borde
+  // delantero, en cambio, queda levantado por encima de los ojos.
   const domeGeo = new THREE.SphereGeometry(
-    HEAD_RADIUS + 0.015,
+    HEAD_RADIUS + 0.022,
     HEAD_SEGMENTS,
     HEAD_SEGMENTS,
     0,
     Math.PI * 2,
     0,
-    Math.PI * 0.5,
+    Math.PI * 0.56,
   )
-  const mat = new THREE.MeshStandardMaterial({ color: teamColor })
+  // Se hornea la inclinación en la geometría (en vez de rotar la malla) para que
+  // su caja envolvente siga siendo ajustada: al medir la altura del avatar con
+  // `Box3.setFromObject`, una malla rotada sobreestimaría la caja (envuelve la
+  // AABB local ya girada) y falsearía la altura.
+  domeGeo.rotateX(-CAP_TILT) // inclina la copa hacia atrás
   const dome = new THREE.Mesh(domeGeo, mat)
+  group.add(dome)
 
-  // Visera: caja aplanada hacia el frente.
-  const visorGeo = new THREE.BoxGeometry(0.22, 0.02, 0.12)
-  const visor = new THREE.Mesh(visorGeo, mat)
-  visor.position.set(0, 0.005, HEAD_RADIUS - 0.01)
-  dome.add(visor)
+  // Visera: caja fina hacia delante, colocada a la altura de la frente (POR
+  // ENCIMA de los ojos, que están en y≈+0.03 respecto del centro de la cabeza) y
+  // horizontal, independiente de la inclinación de la copa. Sale del borde
+  // delantero levantado de la copa.
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.13), mat)
+  visor.position.set(0, 0.07, 0.15)
+  group.add(visor)
 
-  return dome
+  return group
 }
 
+/**
+ * Piernas con jerarquía articulada por lado: un grupo `cadera` contiene el
+ * muslo y un grupo `rodilla`, que a su vez contiene la espinilla y un grupo
+ * `tobillo` con el pie. Así cada articulación es un `THREE.Group` propio,
+ * preparado para un rig futuro. La pose es estática (rodillas flexionadas).
+ *
+ * Para que la figura no parezca un ensamblado de cilindros sueltos, las uniones
+ * se redondean con **esferas de articulación** en cadera, rodilla y tobillo, y
+ * una **pelvis** (cápsula horizontal, como los hombros) enlaza el torso con
+ * ambos muslos formando la cadera. Las esferas son algo mayores que los
+ * segmentos que unen, de modo que tapan el escalón de radio entre muslo,
+ * espinilla y pie.
+ */
 function buildLegs(): THREE.Group {
   const group = new THREE.Group()
   const shortsMat = new THREE.MeshStandardMaterial({ color: SHORTS_COLOR })
   const sockMat = new THREE.MeshStandardMaterial({ color: SOCK_COLOR })
   const shoeMat = new THREE.MeshStandardMaterial({ color: SHOE_COLOR })
+  const origin = new THREE.Vector3(0, 0, 0)
 
-  // Una pierna por lado. Rodillas adelantadas (z+) → flexión de resto.
+  // Pelvis/cadera: cápsula horizontal que une el torso con ambos muslos (mismo
+  // recurso que los hombros arriba). Se solapa con la base del torso y con la
+  // parte alta de los muslos, cerrando el hueco que quedaba entre las piernas.
+  const pelvis = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.12, 0.14, BODY_SEGMENTS / 2, BODY_SEGMENTS),
+    shortsMat,
+  )
+  pelvis.rotation.z = Math.PI / 2 // tumbada de cadera a cadera (eje X)
+  pelvis.scale.set(1, 1, 0.85)
+  pelvis.position.set(0, HIP_Y + 0.02, 0)
+  group.add(pelvis)
+
   for (const side of [-1, 1]) {
     const x = 0.11 * side
-    const hip = new THREE.Vector3(x, HIP_Y, 0)
-    const knee = new THREE.Vector3(x, 0.48, 0.12) // rodilla flexionada hacia delante
-    const ankle = new THREE.Vector3(x, 0.09, 0.0)
+    // Puntos en el espacio del avatar (rodillas adelantadas → flexión de resto).
+    const hipPos = new THREE.Vector3(x, HIP_Y, 0)
+    const kneePos = new THREE.Vector3(x, 0.48, 0.12)
+    const anklePos = new THREE.Vector3(x, 0.09, 0.0)
 
-    group.add(cylinderBetween(hip, knee, 0.09, shortsMat)) // muslo
-    group.add(cylinderBetween(knee, ankle, 0.07, sockMat)) // espinilla
+    const hip = new THREE.Group()
+    hip.position.copy(hipPos)
+    hip.add(jointSphere(0.1, shortsMat)) // articulación de cadera (ball joint)
+    hip.add(cylinderBetween(origin, kneePos.clone().sub(hipPos), 0.09, shortsMat)) // muslo
 
-    // Pie: caja apoyada en el suelo, adelantada.
-    const foot = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.06, 0.24),
-      shoeMat,
-    )
-    foot.position.set(x, 0.03, 0.06)
-    group.add(foot)
+    const knee = new THREE.Group()
+    knee.position.copy(kneePos.clone().sub(hipPos))
+    knee.add(jointSphere(0.08, sockMat)) // rodilla
+    knee.add(cylinderBetween(origin, anklePos.clone().sub(kneePos), 0.07, sockMat)) // espinilla
+
+    const ankle = new THREE.Group()
+    ankle.position.copy(anklePos.clone().sub(kneePos))
+    ankle.add(jointSphere(0.062, sockMat)) // tobillo
+    // Pie: caja apoyada en el suelo, adelantada respecto del tobillo.
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.24), shoeMat)
+    foot.position.set(0, -0.06, 0.06)
+    ankle.add(foot)
+
+    knee.add(ankle)
+    hip.add(knee)
+    group.add(hip)
   }
 
   return group
 }
 
+/**
+ * Brazos con jerarquía articulada por lado: un grupo `hombro` contiene el brazo
+ * y un grupo `codo`, que a su vez contiene el antebrazo y un grupo `mano` con la
+ * palma y los dedos. Cada articulación es un `THREE.Group` propio (rig futuro).
+ * Ambos brazos se estiran al frente para sujetar el mango con las dos manos.
+ */
 function buildArms(): { group: THREE.Group; hands: THREE.Mesh[] } {
   const group = new THREE.Group()
   const hands: THREE.Mesh[] = []
   const armMat = new THREE.MeshStandardMaterial({ color: SKIN_COLOR })
-  const handGeo = new THREE.SphereGeometry(0.06, LIMB_SEGMENTS, LIMB_SEGMENTS)
+  const origin = new THREE.Vector3(0, 0, 0)
 
-  // Ambos brazos se estiran al frente para sujetar el mango con las dos manos,
-  // con la pala apuntando hacia delante (posición de resto/espera).
   const config = [
     {
       shoulder: new THREE.Vector3(-0.19, 1.44, 0),
@@ -367,46 +513,107 @@ function buildArms(): { group: THREE.Group; hands: THREE.Mesh[] } {
     },
   ]
 
-  for (const { shoulder, elbow, hand } of config) {
-    group.add(cylinderBetween(shoulder, elbow, 0.06, armMat)) // brazo
-    group.add(cylinderBetween(elbow, hand, 0.05, armMat)) // antebrazo
+  for (const { shoulder: sPos, elbow: ePos, hand: hPos } of config) {
+    const shoulder = new THREE.Group()
+    shoulder.position.copy(sPos)
+    shoulder.add(cylinderBetween(origin, ePos.clone().sub(sPos), 0.06, armMat)) // brazo
 
-    const handMesh = new THREE.Mesh(handGeo, armMat)
-    handMesh.position.copy(hand)
-    group.add(handMesh)
-    hands.push(handMesh)
+    const elbow = new THREE.Group()
+    elbow.position.copy(ePos.clone().sub(sPos))
+    elbow.add(cylinderBetween(origin, hPos.clone().sub(ePos), 0.05, armMat)) // antebrazo
+
+    const handGroup = new THREE.Group()
+    handGroup.position.copy(hPos.clone().sub(ePos))
+    const { group: hand, palm } = buildHand(armMat)
+    handGroup.add(hand)
+
+    elbow.add(handGroup)
+    shoulder.add(elbow)
+    group.add(shoulder)
+    hands.push(palm)
   }
 
   return { group, hands }
 }
 
-function buildRacket(color: THREE.Color): THREE.Group {
+/**
+ * Mano estilizada que insinúa un agarre: una palma (caja redondeada) con varios
+ * dedos (pequeños cilindros curvados) cerrándose sobre el mango, en lugar de una
+ * esfera lisa. Devuelve el grupo y la malla de la palma (referencia pública).
+ */
+function buildHand(mat: THREE.Material): { group: THREE.Group; palm: THREE.Mesh } {
+  const group = new THREE.Group()
+
+  const palm = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.055), mat)
+  group.add(palm)
+
+  // Cuatro dedos: cilindros cortos que envuelven el mango por delante (+Z).
+  const fingerGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.06, LIMB_SEGMENTS)
+  for (let i = 0; i < 4; i++) {
+    const finger = new THREE.Mesh(fingerGeo, mat)
+    // Repartidos a lo alto de la palma, doblados hacia delante (agarre).
+    finger.position.set(0, 0.03 - i * 0.022, 0.035)
+    finger.rotation.x = Math.PI / 2
+    group.add(finger)
+  }
+
+  // Pulgar: cilindro cruzado por el otro lado del mango.
+  const thumb = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.012, 0.05, LIMB_SEGMENTS),
+    mat,
+  )
+  thumb.position.set(0, -0.01, -0.03)
+  thumb.rotation.z = Math.PI / 2
+  group.add(thumb)
+
+  return { group, palm }
+}
+
+/**
+ * Pala de pádel estilizada. Devuelve el grupo (mango + puente + cara) y la
+ * malla de la cara, cuyo material usa un `alphaMap` procedural para los
+ * agujeros (sin geometría perforada).
+ *
+ * Se construye en local con el eje longitudinal en +Y y la cara en el plano XY
+ * (normal +Z); luego el grupo se orienta e inserta entre las manos.
+ */
+function buildRacket(color: THREE.Color): { group: THREE.Group; face: THREE.Mesh } {
   const group = new THREE.Group()
   const handleMat = new THREE.MeshStandardMaterial({ color: HANDLE_COLOR })
-  const headMat = new THREE.MeshStandardMaterial({ color })
+  const frameMat = new THREE.MeshStandardMaterial({ color })
 
-  // Construida en local apuntando hacia +Y; luego se orienta e inserta en las manos.
+  // Grip (puño): cilindro oscuro centrado en el origen, donde agarran las manos.
   const handle = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.018, 0.018, 0.16, LIMB_SEGMENTS),
+    new THREE.CylinderGeometry(0.02, 0.019, 0.16, LIMB_SEGMENTS),
     handleMat,
   )
-  handle.position.y = 0.08
+  handle.position.y = 0.0
   group.add(handle)
 
-  // Cuello (unión mango-cabeza).
-  const throat = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.02, 0.03, 0.06, LIMB_SEGMENTS),
-    headMat,
+  // Remate del puño (butt cap): disco algo más ancho al final del mango.
+  const butt = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.026, 0.026, 0.02, LIMB_SEGMENTS),
+    handleMat,
   )
-  throat.position.y = 0.19
-  group.add(throat)
+  butt.position.y = -0.09
+  group.add(butt)
 
-  // Cabeza redondeada de la pala: esfera aplanada (disco ovalado).
-  const headGeo = new THREE.SphereGeometry(0.15, HEAD_SEGMENTS, HEAD_SEGMENTS)
-  const racketHead = new THREE.Mesh(headGeo, headMat)
-  racketHead.scale.set(0.85, 1.0, 0.22)
-  racketHead.position.y = 0.34
-  group.add(racketHead)
+  // Puente/cuello triangular que une el mango con la cara (color de la pala).
+  const bridgeShape = new THREE.Shape()
+  bridgeShape.moveTo(-0.035, 0)
+  bridgeShape.lineTo(0.035, 0)
+  bridgeShape.lineTo(0, 0.11)
+  bridgeShape.lineTo(-0.035, 0)
+  const bridge = new THREE.Mesh(new THREE.ShapeGeometry(bridgeShape), frameMat)
+  bridge.material.side = THREE.DoubleSide
+  bridge.position.set(0, 0.08, 0)
+  group.add(bridge)
+
+  // Cara: disco redondo con grosor (extruido). Los agujeros se pintan con
+  // `alphaMap`. Se apoya por su parte baja en el cuello/puente.
+  const face = buildRacketFace(color)
+  face.position.set(0, 0.17, 0)
+  group.add(face)
 
   // Se agarra entre las manos y se estira hacia DELANTE (casi horizontal, con
   // una ligera inclinación hacia arriba), como en la posición de resto/espera.
@@ -421,7 +628,160 @@ function buildRacket(color: THREE.Color): THREE.Group {
   group.rotation.y = Math.PI / 2
   group.rotation.x = Math.PI / 2 - 0.28
 
-  return group
+  return { group, face }
+}
+
+// Geometría de la cara (metros).
+const FACE_RADIUS = 0.15 // radio de la cara redonda (Ø 0,30 m)
+const FACE_THICKNESS = 0.02 // grosor del disco (canto)
+
+/**
+ * Cara de la pala: disco **redondo** y con **grosor** (3D), con agujeros por
+ * transparencia.
+ *
+ * La silueta es un círculo (una pala de pádel es prácticamente redonda) apoyado
+ * por su parte baja en el cuello (origen local). En vez de una lámina plana
+ * (`ShapeGeometry`), se **extruye** el círculo (`ExtrudeGeometry`) para darle
+ * canto —con un pequeño bisel que redondea los bordes— de modo que se aprecie el
+ * volumen. El disco se centra en su plano local (Z) para que el grupo lo siga
+ * orientando igual.
+ *
+ * Los agujeros se pintan con un `alphaMap` procedural (rejilla de círculos
+ * transparentes) en lugar de perforar geometría, para no disparar el recuento de
+ * triángulos con muchos avatares. Se recalculan las UV a [0, 1] a partir de la
+ * caja envolvente en XY: como los agujeros ocupan solo el interior del círculo,
+ * el canto (perímetro, UV al borde) queda opaco y hace de marco.
+ */
+function buildRacketFace(color: THREE.Color): THREE.Mesh {
+  const R = FACE_RADIUS
+
+  // Círculo con centro en (0, R): su punto más bajo toca el cuello (0, 0).
+  const shape = new THREE.Shape()
+  shape.absarc(0, R, R, 0, Math.PI * 2, false)
+
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: FACE_THICKNESS,
+    curveSegments: 24, // suavidad del contorno redondo
+    bevelEnabled: true,
+    bevelThickness: 0.006,
+    bevelSize: 0.006,
+    bevelSegments: 2,
+  })
+  // Centrar el disco en su plano local (la extrusión va de z=0 a z=depth+bisel).
+  geo.computeBoundingBox()
+  const bb = geo.boundingBox!
+  geo.translate(0, 0, -(bb.min.z + bb.max.z) / 2)
+  remapUVToUnit(geo)
+
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    side: THREE.DoubleSide,
+    alphaMap: getRacketHolesAlphaMap(),
+    transparent: true,
+    alphaTest: 0.5, // recorte limpio de los agujeros (sin problemas de orden)
+  })
+
+  return new THREE.Mesh(geo, mat)
+}
+
+/**
+ * Recalcula el atributo UV de una geometría plana (en el plano XY) para que sus
+ * coordenadas cubran el rango [0, 1] según su caja envolvente. `ShapeGeometry`
+ * usa las coordenadas del `Shape` como UV, que aquí no están normalizadas.
+ */
+function remapUVToUnit(geo: THREE.BufferGeometry): void {
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  geo.computeBoundingBox()
+  const bb = geo.boundingBox!
+  const w = bb.max.x - bb.min.x || 1
+  const h = bb.max.y - bb.min.y || 1
+  const uv = new Float32Array(pos.count * 2)
+  for (let i = 0; i < pos.count; i++) {
+    uv[i * 2] = (pos.getX(i) - bb.min.x) / w
+    uv[i * 2 + 1] = (pos.getY(i) - bb.min.y) / h
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+}
+
+// La `alphaMap` de agujeros es idéntica para todas las palas (no depende del
+// color): se genera una sola vez y se comparte entre todos los avatares.
+let sharedRacketHolesAlphaMap: THREE.DataTexture | null = null
+
+/** Devuelve la `alphaMap` de agujeros compartida, creándola la primera vez. */
+function getRacketHolesAlphaMap(): THREE.DataTexture {
+  if (!sharedRacketHolesAlphaMap) {
+    sharedRacketHolesAlphaMap = buildRacketHolesAlphaMap()
+  }
+  return sharedRacketHolesAlphaMap
+}
+
+/**
+ * Genera por código una `alphaMap` con la rejilla de agujeros de la pala: una
+ * textura de datos (sin necesidad de canvas/DOM) donde los círculos son
+ * transparentes (canal 0) y el resto opaco (255). Three.js muestrea el canal
+ * verde para el `alphaMap`, pero se rellenan todos los canales por claridad.
+ *
+ * Como la cara es redonda, los agujeros se disponen en una rejilla recortada a
+ * un círculo (centro (0.5, 0.5) en UV) algo más pequeño que la cara, dejando un
+ * marco opaco en el borde. Los agujeros son pequeños (radio ~0,022 en UV) para
+ * parecerse a los de una pala real; la resolución es alta para que salgan
+ * nítidos pese a su tamaño.
+ */
+function buildRacketHolesAlphaMap(): THREE.DataTexture {
+  const size = 256
+  const data = new Uint8Array(size * size * 4)
+  const cols = 8
+  const rows = 8
+  const holeRadius = size * 0.022 // agujeros pequeños
+  const patternRadius = 0.37 // radio (en UV) del círculo que contiene los agujeros
+
+  // Rejilla de candidatos en [0.1, 0.9]²; se conservan los que caen dentro del
+  // círculo del patrón, formando una nube circular de agujeros.
+  const centers: Array<[number, number]> = []
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const u = 0.1 + (c / (cols - 1)) * 0.8
+      const v = 0.1 + (r / (rows - 1)) * 0.8
+      const du = u - 0.5
+      const dv = v - 0.5
+      if (du * du + dv * dv <= patternRadius * patternRadius) {
+        centers.push([u * size, v * size])
+      }
+    }
+  }
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let opaque = 255
+      for (const [cx, cy] of centers) {
+        const dx = x + 0.5 - cx
+        const dy = y + 0.5 - cy
+        if (dx * dx + dy * dy <= holeRadius * holeRadius) {
+          opaque = 0
+          break
+        }
+      }
+      const idx = (y * size + x) * 4
+      data[idx] = opaque
+      data[idx + 1] = opaque
+      data[idx + 2] = opaque
+      data[idx + 3] = 255
+    }
+  }
+
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat)
+  tex.needsUpdate = true
+  return tex
+}
+
+/**
+ * Esfera de articulación (rodilla, cadera, tobillo…) centrada en el origen del
+ * grupo articulación. Redondea la unión entre dos segmentos y tapa el escalón de
+ * radio entre ellos. Baja resolución para conservar el estilo low-poly.
+ */
+function jointSphere(radius: number, material: THREE.Material): THREE.Mesh {
+  const geo = new THREE.SphereGeometry(radius, LIMB_SEGMENTS + 2, LIMB_SEGMENTS)
+  return new THREE.Mesh(geo, material)
 }
 
 /**

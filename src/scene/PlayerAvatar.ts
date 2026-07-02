@@ -252,17 +252,18 @@ function buildArms(): { group: THREE.Group; hands: THREE.Mesh[] } {
   const armMat = new THREE.MeshStandardMaterial({ color: SKIN_COLOR })
   const handGeo = new THREE.SphereGeometry(0.06, LIMB_SEGMENTS, LIMB_SEGMENTS)
 
-  // Ambos brazos convergen al frente para agarrar el mango con las dos manos.
+  // Ambos brazos se estiran al frente para sujetar el mango con las dos manos,
+  // con la pala apuntando hacia delante (posición de resto/espera).
   const config = [
     {
       shoulder: new THREE.Vector3(-0.19, 1.44, 0),
-      elbow: new THREE.Vector3(-0.26, 1.18, 0.14),
-      hand: new THREE.Vector3(-0.05, 1.1, 0.33),
+      elbow: new THREE.Vector3(-0.16, 1.32, 0.26),
+      hand: new THREE.Vector3(-0.05, 1.22, 0.5),
     },
     {
       shoulder: new THREE.Vector3(0.19, 1.44, 0),
-      elbow: new THREE.Vector3(0.26, 1.18, 0.14),
-      hand: new THREE.Vector3(0.06, 1.1, 0.33),
+      elbow: new THREE.Vector3(0.16, 1.32, 0.26),
+      hand: new THREE.Vector3(0.06, 1.22, 0.5),
     },
   ]
 
@@ -307,9 +308,11 @@ function buildRacket(color: THREE.Color): THREE.Group {
   racketHead.position.y = 0.34
   group.add(racketHead)
 
-  // Se agarra entre las manos, apuntando hacia arriba y ligeramente al frente.
-  group.position.set(0, 1.0, 0.3)
-  group.rotation.x = -0.35
+  // Se agarra entre las manos y se estira hacia DELANTE (casi horizontal, con
+  // una ligera inclinación hacia arriba), como en la posición de resto/espera.
+  // Construida apuntando a +Y, se lleva a +Z girando ~+90° en el eje X.
+  group.position.set(0, 1.18, 0.46)
+  group.rotation.x = Math.PI / 2 - 0.28
 
   return group
 }

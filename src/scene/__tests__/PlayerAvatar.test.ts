@@ -115,6 +115,18 @@ describe('PlayerAvatar', () => {
     expect(Math.abs(left.position.x - right.position.x)).toBeLessThan(0.2)
   })
 
+  it('sujeta la pala estirada hacia delante (apunta a +Z, no hacia arriba)', () => {
+    const avatar = new PlayerAvatar()
+    avatar.updateMatrixWorld(true)
+    // Eje de la pala (local +Y) expresado en el mundo.
+    const dir = new THREE.Vector3(0, 1, 0)
+      .applyQuaternion(avatar.racket.getWorldQuaternion(new THREE.Quaternion()))
+      .normalize()
+    // Debe apuntar mayormente hacia delante (+Z), no hacia arriba (+Y).
+    expect(dir.z).toBeGreaterThan(0.7)
+    expect(dir.z).toBeGreaterThan(dir.y)
+  })
+
   it('genera un color de pala aleatorio a partir del rng', () => {
     const a = new PlayerAvatar(0xffffff, { rng: constantRng(0.1) })
     const b = new PlayerAvatar(0xffffff, { rng: constantRng(0.8) })

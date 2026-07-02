@@ -1,16 +1,18 @@
 import * as THREE from 'three'
 import { PadelCourt } from './PadelCourt'
+import { createCamera, frameCourt } from './createCamera'
 import { mountScoreboard } from '../ui/Scoreboard'
 import type { DataSource } from '../data/DataSource'
 
-// Vista reutilizable de UNA pista: su sub-árbol 3D y su marcador overlay.
+// Vista autocontenida de UNA pista: su escena 3D (pista + luces), su cámara y su
+// marcador overlay.
 //
-// `main.ts` montaba a mano la única pista (court + marcador). Para renderizar N
-// pistas (hito M3) ese montaje se encapsula aquí: dado un `DataSource` y una
-// celda, `CourtView` construye la pista 3D colocada en su posición y el marcador
-// alimentado por la fuente. La escena, la cámara y las luces globales siguen
-// siendo responsabilidad del contenedor (`main.ts`), porque se comparten entre
-// todas las pistas.
+// Para renderizar N pistas usamos un único `WebGLRenderer` que dibuja cada vista
+// en su propia celda de la pantalla (ver `MultiCourtRenderer`). Como cada celda
+// se pinta por separado con `setViewport`/`setScissor`, cada `CourtView` posee
+// su propia escena, cámara y luces: así una pista es independiente de las demás
+// y el contenedor (`main.ts`) solo tiene que orquestar la rejilla, no compartir
+// estado 3D entre pistas.
 
 /**
  * Celda/región donde se coloca una pista dentro de la escena, como
@@ -26,12 +28,17 @@ export interface CourtCell {
 }
 
 /**
- * Encapsula el montaje de una pista: la pista 3D (`object3D`, lista para añadir
- * a una escena) y su marcador (`scoreboardEl`, listo para insertar en el DOM),
- * ambos vinculados al mismo `DataSource`.
+ * Encapsula una pista completa y autocontenida: su escena 3D (`scene`, con la
+ * pista y las luces), su `camera` de retransmisión y su marcador (`scoreboardEl`,
+ * listo para insertar en el DOM), todo vinculado al mismo `DataSource`. Un
+ * renderer multipista dibuja cada `CourtView` en su celda con su propia cámara.
  */
 export class CourtView {
-  /** Sub-árbol 3D de esta pista, colocado según la celda. Añádelo a la escena. */
+  /** Escena propia de esta pista (pista, luces y fondo). Se renderiza sola. */
+  readonly scene: THREE.Scene
+  /** Cámara de retransmisión propia. Reencuádrala con `frame(aspect)`. */
+  readonly camera: THREE.PerspectiveCamera
+  /** Sub-árbol 3D de esta pista, colocado según la celda. Ya añadido a `scene`. */
   readonly object3D: THREE.Group
   /** Pista 3D contenida (útil para inspección/tests). */
   readonly court: PadelCourt
@@ -47,9 +54,33 @@ export class CourtView {
     this.object3D.add(this.court)
     this.object3D.position.set(cell.x ?? 0, 0, cell.z ?? 0)
 
+    // Escena propia de la celda: el fondo de cielo, la pista y sus luces. No se
+    // comparte con las demás pistas, de modo que cada celda es independiente.
+    this.scene = new THREE.Scene()
+    this.scene.background = new THREE.Color(0x87ceeb)
+    this.scene.add(this.object3D)
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.6))
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+    directionalLight.position.set(10, 20, 10)
+    this.scene.add(directionalLight)
+
+    // Cámara con un aspecto provisional (1:1); el renderer la reencuadra con el
+    // aspecto real de su celda vía `frame()` al maquetar la rejilla.
+    this.camera = createCamera(1)
+
     const scoreboard = mountScoreboard(source)
     this.scoreboardEl = scoreboard.el
     this.stopScoreboard = scoreboard.stop
+  }
+
+  /**
+   * Reencuadra la cámara para el aspecto (ancho/alto) de la celda donde se
+   * dibuja esta pista. Llamar al maquetar la rejilla y al redimensionar.
+   */
+  frame(aspect: number): void {
+    this.camera.aspect = aspect
+    this.camera.updateProjectionMatrix()
+    frameCourt(this.camera)
   }
 
   /** Cancela la suscripción del marcador. Llamar al retirar la vista. */

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { CourtView, TEAM_COLORS } from '../CourtView'
+import { CourtView, TEAM_COLORS, POSITION_SCENARIOS } from '../CourtView'
 import { PadelCourt } from '../PadelCourt'
 import { PlayerAvatar } from '../PlayerAvatar'
 import type { DataSource } from '../../data/DataSource'
@@ -178,6 +178,52 @@ describe('CourtView', () => {
       expect(player.rotation.y).toBeCloseTo(expected, 5)
     }
   })
+
+  it('usa el escenario indicado en las opciones', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source, {}, { scenario: 2 })
+
+    expect(view.scenario).toBe(2)
+  })
+
+  it('elige el escenario al azar con el rng inyectado', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    // rng=0.8 → Math.floor(0.8 * 4) = 3
+    const view = new CourtView(source, {}, { rng: () => 0.8 })
+
+    expect(view.scenario).toBe(3)
+  })
+
+  it('por defecto elige un escenario válido (0..3)', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    expect(view.scenario).toBeGreaterThanOrEqual(0)
+    expect(view.scenario).toBeLessThan(POSITION_SCENARIOS.length)
+  })
+
+  it.each([0, 1, 2, 3])(
+    'coloca a cada pareja a la profundidad del escenario %i',
+    (index) => {
+      const { source } = createFakeSource(buildCourt('Pista Central'))
+      const view = new CourtView(source, {}, { scenario: index })
+      const spec = POSITION_SCENARIOS[index]
+
+      const asc = (a: number, b: number) => a - b
+      // El equipo 0 juega en Z<0 y el equipo 1 en Z>0; comparamos magnitudes.
+      const nearDepths = view.players
+        .filter((p) => p.position.z < 0)
+        .map((p) => Math.abs(p.position.z))
+        .sort(asc)
+      const farDepths = view.players
+        .filter((p) => p.position.z > 0)
+        .map((p) => Math.abs(p.position.z))
+        .sort(asc)
+
+      expect(nearDepths).toEqual([...spec.team0].sort(asc))
+      expect(farDepths).toEqual([...spec.team1].sort(asc))
+    },
+  )
 
   it('monta el marcador con el estado inicial de la fuente', () => {
     const { source } = createFakeSource(buildCourt('Pista Norte', 15))

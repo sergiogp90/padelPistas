@@ -29,17 +29,60 @@ interface PlayerSlot {
 }
 
 /**
- * Colocación representativa de los 4 jugadores: 2 por equipo, repartidos a cada
- * lado de la red (equipo 0 en Z<0, equipo 1 en Z>0) y separados en X para cubrir
- * las dos mitades laterales de su campo. No pretende reproducir una táctica
- * concreta, solo poblar la pista de forma verosímil.
+ * Profundidades representativas (|z|, en metros) de un jugador dentro de su
+ * mitad de pista, medidas desde la red (Z=0):
+ *  - `NET_Z`: pareja subida a la red.
+ *  - `BACK_Z`: pareja retrasada, por detrás de la línea de servicio (a 6,95 m de
+ *    la red) en la zona de resto, cerca del cristal de fondo (a 10 m) pero sin
+ *    pegarse a él.
  */
-const PLAYER_SLOTS: readonly PlayerSlot[] = [
-  { x: -2.5, z: -5, team: 0 },
-  { x: 2.5, z: -5, team: 0 },
-  { x: -2.5, z: 5, team: 1 },
-  { x: 2.5, z: 5, team: 1 },
+const NET_Z = 2.5
+const BACK_Z = 8
+
+/** Posiciones laterales (X) de los dos jugadores de un mismo equipo (m). */
+const LATERAL_X: readonly [number, number] = [-2.5, 2.5]
+
+/**
+ * Profundidades (|z|) de los dos jugadores de cada equipo en un escenario. El
+ * equipo 0 juega en la mitad Z<0 y el equipo 1 en la mitad Z>0; aquí se indican
+ * como magnitudes y el signo lo aplica el constructor según el equipo.
+ */
+interface ScenarioSpec {
+  /** Profundidades de los dos jugadores del equipo 0 (mitad Z<0). */
+  team0: readonly [number, number]
+  /** Profundidades de los dos jugadores del equipo 1 (mitad Z>0). */
+  team1: readonly [number, number]
+}
+
+/**
+ * Los 4 escenarios posibles de colocación de las dos parejas. Uno se elige al
+ * azar al crear la pista (o se fija con `CourtViewOptions.scenario` en tests).
+ * No reproducen una táctica exacta, solo poblar la pista de forma verosímil:
+ *
+ *  0. Equipo 0 en la red; equipo 1 retrasado tras la línea de servicio (resto).
+ *  1. A la inversa: equipo 0 retrasado; equipo 1 en la red.
+ *  2. Ambos equipos subidos a la red.
+ *  3. Equipo 0 retrasado; equipo 1 escalonado (uno atrás para sacar y otro en la red).
+ */
+export const POSITION_SCENARIOS: readonly ScenarioSpec[] = [
+  { team0: [NET_Z, NET_Z], team1: [BACK_Z, BACK_Z] },
+  { team0: [BACK_Z, BACK_Z], team1: [NET_Z, NET_Z] },
+  { team0: [NET_Z, NET_Z], team1: [NET_Z, NET_Z] },
+  { team0: [BACK_Z, BACK_Z], team1: [BACK_Z, NET_Z] },
 ]
+
+/** Traduce un `ScenarioSpec` a los 4 `PlayerSlot` concretos (con signo en Z). */
+function slotsForScenario(spec: ScenarioSpec): PlayerSlot[] {
+  const slots: PlayerSlot[] = []
+  for (const team of [0, 1] as const) {
+    const depths = team === 0 ? spec.team0 : spec.team1
+    const sign = team === 0 ? -1 : 1
+    depths.forEach((depth, i) => {
+      slots.push({ x: LATERAL_X[i], z: sign * depth, team })
+    })
+  }
+  return slots
+}
 
 // Vista autocontenida de UNA pista: su escena 3D (pista + luces), su cámara y su
 // marcador overlay.
@@ -64,6 +107,17 @@ export interface CourtCell {
   z?: number
 }
 
+/** Opciones de creación de una `CourtView`. */
+export interface CourtViewOptions {
+  /**
+   * Índice del escenario de posiciones a usar (0-3, ver `POSITION_SCENARIOS`).
+   * Si se omite, se elige uno al azar con `rng`. Útil para fijarlo en tests.
+   */
+  scenario?: number
+  /** Fuente de aleatoriedad (inyectable para tests). Por defecto Math.random. */
+  rng?: () => number
+}
+
 /**
  * Encapsula una pista completa y autocontenida: su escena 3D (`scene`, con la
  * pista y las luces), su `camera` de retransmisión y su marcador (`scoreboardEl`,
@@ -81,21 +135,28 @@ export class CourtView {
   readonly court: PadelCourt
   /** Los 4 avatares de jugadores (2 por equipo), ya colocados en la pista. */
   readonly players: PlayerAvatar[]
+  /** Índice del escenario de posiciones aplicado (0-3, ver `POSITION_SCENARIOS`). */
+  readonly scenario: number
   /** Overlay HTML del marcador. Insértalo en el DOM (p. ej. `document.body`). */
   readonly scoreboardEl: HTMLElement
 
   private readonly stopScoreboard: () => void
 
-  constructor(source: DataSource, cell: CourtCell = {}) {
+  constructor(source: DataSource, cell: CourtCell = {}, options: CourtViewOptions = {}) {
     this.court = new PadelCourt()
 
     this.object3D = new THREE.Group()
     this.object3D.add(this.court)
     this.object3D.position.set(cell.x ?? 0, 0, cell.z ?? 0)
 
-    // 4 jugadores en posiciones representativas, con el color de su equipo.
+    // Escenario de colocación: el indicado, o uno al azar entre los 4 posibles.
+    const rng = options.rng ?? Math.random
+    this.scenario =
+      options.scenario ?? Math.floor(rng() * POSITION_SCENARIOS.length)
+
+    // 4 jugadores según el escenario elegido, con el color de su equipo.
     // Se añaden al sub-árbol de la pista para que se muevan con la celda.
-    this.players = PLAYER_SLOTS.map((slot) => {
+    this.players = slotsForScenario(POSITION_SCENARIOS[this.scenario]).map((slot) => {
       const avatar = new PlayerAvatar(TEAM_COLORS[slot.team])
       avatar.position.set(slot.x, 0, slot.z)
       // El avatar mira hacia +Z por defecto; el equipo de la mitad lejana (Z>0)

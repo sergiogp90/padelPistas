@@ -1,8 +1,7 @@
 import './style.css'
 import * as THREE from 'three'
-import { PadelCourt } from './scene/PadelCourt'
 import { createCamera, frameCourt } from './scene/createCamera'
-import { mountScoreboard } from './ui/Scoreboard'
+import { CourtView } from './scene/CourtView'
 import { MockDataSource } from './data/MockDataSource'
 
 const scene = new THREE.Scene()
@@ -15,22 +14,22 @@ renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.setPixelRatio(window.devicePixelRatio)
 document.body.appendChild(renderer.domElement)
 
-// Marcador overlay (HTML/CSS sobre el canvas), alimentado por un `DataSource`.
-// La UI no conoce el origen de los datos: se suscribe y se re-renderiza sola
-// según avanza el partido simulado.
-const dataSource = new MockDataSource()
-document.body.appendChild(mountScoreboard(dataSource).el)
-dataSource.start()
-
-const court = new PadelCourt()
-scene.add(court)
-
+// Luces globales de la escena, compartidas por todas las pistas.
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
 scene.add(ambientLight)
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
 directionalLight.position.set(10, 20, 10)
 scene.add(directionalLight)
+
+// Pista única, montada mediante `CourtView`: encapsula la pista 3D y su marcador
+// overlay (alimentado por un `DataSource`). La UI no conoce el origen de los
+// datos: se suscribe y se re-renderiza sola según avanza el partido simulado.
+// La celda por defecto (origen) reproduce la vista actual, sin cambio visible.
+const dataSource = new MockDataSource()
+const courtView = new CourtView(dataSource)
+scene.add(courtView.object3D)
+document.body.appendChild(courtView.scoreboardEl)
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight

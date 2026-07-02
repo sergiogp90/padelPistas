@@ -73,10 +73,23 @@ del navegador (~8–16) y penalizaría el rendimiento. Decisión detallada en el
 (alternativa descartada: N renderers).
 
 ### 5. Avatares estilizados y posiciones representativas
-Los jugadores serán figuras simples (low-poly / cápsulas / sprites) colocadas en
-sus zonas, sin tracking real.
+Los jugadores son figuras estilizadas (*muñeco* low-poly) construidas **por
+código** con primitivas y geometría procedural de Three.js (`PlayerAvatar`),
+colocadas en sus zonas, sin tracking real. Nada de modelos externos
+(glTF/GLB): así se conservan los tests estructurales y el pipeline sigue siendo
+solo código.
+
+Detalle del muñeco: torso con hombros y cuello, rostro con ojos/nariz/boca,
+manos que insinúan dedos sobre el mango y extremidades organizadas en
+**jerarquía por articulaciones** (hombro→codo→mano, cadera→rodilla→pie) pensando
+en un rig futuro. La **pala** tiene silueta de gota con puente triangular y
+grip oscuro; sus **agujeros se resuelven con una textura de transparencia**
+(`alphaMap` procedural sobre la cara plana), **no** con geometría perforada,
+para no disparar el recuento de triángulos con decenas de avatares en pantalla.
 
 *Por qué:* es un alcance realista para un proyecto personal y rinde bien en TV.
+El presupuesto se vigila con un test (≤ ~4.000 triángulos por avatar) para
+mantener 60 FPS con la rejilla multipista.
 
 ---
 

@@ -24,6 +24,34 @@ function constantRng(value: number): () => number {
   return () => value
 }
 
+/** Cuenta los triángulos de todas las mallas bajo un objeto. */
+function countTriangles(root: THREE.Object3D): number {
+  let total = 0
+  root.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      const geo = obj.geometry as THREE.BufferGeometry
+      if (geo.index) total += geo.index.count / 3
+      else total += (geo.attributes.position?.count ?? 0) / 3
+    }
+  })
+  return total
+}
+
+/** Todas las mallas (hojas) bajo un objeto. */
+function meshesUnder(root: THREE.Object3D): THREE.Mesh[] {
+  const out: THREE.Mesh[] = []
+  root.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) out.push(obj)
+  })
+  return out
+}
+
+/** Posición en el mundo de un objeto (tras actualizar las matrices). */
+function worldPos(obj: THREE.Object3D): THREE.Vector3 {
+  obj.updateMatrixWorld(true)
+  return obj.getWorldPosition(new THREE.Vector3())
+}
+
 describe('PlayerAvatar', () => {
   it('es un THREE.Group', () => {
     const avatar = new PlayerAvatar()
@@ -71,35 +99,83 @@ describe('PlayerAvatar', () => {
     expect(avatar.head.position.y).toBeGreaterThan(avatar.body.position.y)
   })
 
-  it('tiene rostro (dos ojos) y pelo en la cabeza', () => {
+  it('tiene rostro (ojos, nariz y boca) y pelo en la cabeza', () => {
     const avatar = new PlayerAvatar()
     expect(avatar.eyes).toHaveLength(2)
+    expect(avatar.nose).toBeInstanceOf(THREE.Mesh)
+    expect(avatar.mouth).toBeInstanceOf(THREE.Mesh)
     expect(avatar.hair).toBeInstanceOf(THREE.Mesh)
     // El rostro y el pelo cuelgan de la cabeza para moverse con ella.
     for (const eye of avatar.eyes) {
       expect(eye.parent).toBe(avatar.head)
     }
+    expect(avatar.nose.parent).toBe(avatar.head)
+    expect(avatar.mouth.parent).toBe(avatar.head)
     expect(avatar.hair.parent).toBe(avatar.head)
   })
 
-  it('tiene brazos y dos manos', () => {
+  it('la nariz y la boca sobresalen hacia delante (+Z) del rostro', () => {
     const avatar = new PlayerAvatar()
-    expect(avatar.hands).toHaveLength(2)
-    // Brazo + antebrazo + mano por lado = 6 elementos como mínimo.
-    expect(avatar.arms.children.length).toBeGreaterThanOrEqual(6)
+    // Ambas por delante del centro de la cabeza (miran hacia +Z).
+    expect(avatar.nose.position.z).toBeGreaterThan(0)
+    expect(avatar.mouth.position.z).toBeGreaterThan(0)
+    // La boca queda por debajo de la nariz.
+    expect(avatar.mouth.position.y).toBeLessThan(avatar.nose.position.y)
   })
 
-  it('tiene dos piernas con pies (rodillas flexionadas hacia delante)', () => {
+  it('tiene torso, hombros anchos y cuello (silueta más definida)', () => {
     const avatar = new PlayerAvatar()
-    // Muslo + espinilla + pie por pierna = 6 elementos.
-    expect(avatar.legs.children.length).toBeGreaterThanOrEqual(6)
-    // Los pies (cajas) se adelantan respecto de la cadera (z > 0) por la flexión.
-    const feet = avatar.legs.children.filter(
-      (c) => c instanceof THREE.Mesh && c.geometry instanceof THREE.BoxGeometry,
+    expect(avatar.shoulders).toBeInstanceOf(THREE.Mesh)
+    expect(avatar.neck).toBeInstanceOf(THREE.Mesh)
+    // Hombros y cuello entre el torso y la cabeza.
+    expect(avatar.shoulders.position.y).toBeGreaterThan(avatar.body.position.y)
+    expect(avatar.neck.position.y).toBeGreaterThan(avatar.body.position.y)
+    expect(avatar.neck.position.y).toBeLessThan(avatar.head.position.y)
+  })
+
+  it('aplica el color de equipo también a los hombros', () => {
+    const avatar = new PlayerAvatar(0xff0000)
+    const mat = avatar.shoulders.material as THREE.MeshStandardMaterial
+    expect(mat.color.getHex()).toBe(0xff0000)
+    avatar.setTeamColor(0x0000ff)
+    expect(mat.color.getHex()).toBe(0x0000ff)
+  })
+
+  it('tiene brazos y dos manos con dedos (jerarquía hombro→codo→mano)', () => {
+    const avatar = new PlayerAvatar()
+    expect(avatar.hands).toHaveLength(2)
+    // Un grupo de hombro por lado, articulado con codo y mano anidados.
+    expect(avatar.arms.children).toHaveLength(2)
+    for (const shoulder of avatar.arms.children) {
+      expect(shoulder).toBeInstanceOf(THREE.Group)
+      // hombro → codo → mano: al menos dos niveles de grupos anidados.
+      const elbow = shoulder.children.find((c) => c instanceof THREE.Group)
+      expect(elbow).toBeInstanceOf(THREE.Group)
+    }
+    // Cada mano insinúa dedos: la palma tiene varias mallas hermanas.
+    for (const palm of avatar.hands) {
+      expect(palm.parent!.children.length).toBeGreaterThan(1)
+    }
+  })
+
+  it('tiene dos piernas con pies (jerarquía cadera→rodilla→pie)', () => {
+    const avatar = new PlayerAvatar()
+    // Un grupo de cadera por pierna (más la pelvis, que es una malla suelta que
+    // une el torso con ambos muslos), articulado con rodilla y tobillo anidados.
+    const hips = avatar.legs.children.filter((c) => c instanceof THREE.Group)
+    expect(hips).toHaveLength(2)
+    for (const hip of hips) {
+      expect(hip).toBeInstanceOf(THREE.Group)
+      const knee = hip.children.find((c) => c instanceof THREE.Group)
+      expect(knee).toBeInstanceOf(THREE.Group)
+    }
+    // Los pies (cajas) se adelantan respecto del avatar (z > 0) por la flexión.
+    const feet = meshesUnder(avatar.legs).filter(
+      (m) => m.geometry instanceof THREE.BoxGeometry,
     )
     expect(feet).toHaveLength(2)
     for (const foot of feet) {
-      expect(foot.position.z).toBeGreaterThan(0)
+      expect(worldPos(foot).z).toBeGreaterThan(0)
     }
   })
 
@@ -109,10 +185,44 @@ describe('PlayerAvatar', () => {
     expect(avatar.racket.children.length).toBeGreaterThan(0)
     // Las dos manos están próximas entre sí y por delante del cuerpo (z > 0),
     // como agarrando el mango.
-    const [left, right] = avatar.hands
-    expect(left.position.z).toBeGreaterThan(0)
-    expect(right.position.z).toBeGreaterThan(0)
-    expect(Math.abs(left.position.x - right.position.x)).toBeLessThan(0.2)
+    const [left, right] = avatar.hands.map(worldPos)
+    expect(left.z).toBeGreaterThan(0)
+    expect(right.z).toBeGreaterThan(0)
+    expect(Math.abs(left.x - right.x)).toBeLessThan(0.2)
+  })
+
+  it('la pala tiene cara redonda con grosor (3D) y agujeros por textura (alphaMap), sin perforar', () => {
+    const avatar = new PlayerAvatar()
+    // La cara es un disco extruido (con grosor), no una lámina plana ni geometría real perforada.
+    expect(avatar.racketFace.geometry).toBeInstanceOf(THREE.ExtrudeGeometry)
+    const mat = avatar.racketFace.material as THREE.MeshStandardMaterial
+    // Los agujeros se resuelven con un alphaMap con transparencia.
+    expect(mat.alphaMap).toBeInstanceOf(THREE.Texture)
+    expect(mat.transparent).toBe(true)
+
+    avatar.racketFace.geometry.computeBoundingBox()
+    const bb = avatar.racketFace.geometry.boundingBox!
+    const width = bb.max.x - bb.min.x
+    const height = bb.max.y - bb.min.y
+    const depth = bb.max.z - bb.min.z
+    // Redonda: ancho y alto prácticamente iguales.
+    expect(Math.abs(width - height)).toBeLessThan(0.02)
+    // Con grosor real en Z (se nota como 3D), mucho menor que el diámetro.
+    expect(depth).toBeGreaterThan(0)
+    expect(depth).toBeLessThan(width)
+  })
+
+  it('la cara de la pala lleva el color de la pala', () => {
+    const avatar = new PlayerAvatar(0xffffff, { racketColor: 0x00ff00 })
+    const mat = avatar.racketFace.material as THREE.MeshStandardMaterial
+    expect(mat.color.getHex()).toBe(0x00ff00)
+  })
+
+  it('respeta el presupuesto de triángulos (≤ ~4.000 por avatar)', () => {
+    for (const hasCap of [false, true]) {
+      const avatar = new PlayerAvatar(0xffffff, { hasCap })
+      expect(countTriangles(avatar)).toBeLessThanOrEqual(4000)
+    }
   })
 
   it('sujeta la pala estirada hacia delante (apunta a +Z, no hacia arriba)', () => {
@@ -157,14 +267,14 @@ describe('PlayerAvatar', () => {
     const conGorra = new PlayerAvatar(0xffffff, { rng: constantRng(0.2) })
     const sinGorra = new PlayerAvatar(0xffffff, { rng: constantRng(0.9) })
     expect(conGorra.hasCap).toBe(true)
-    expect(conGorra.cap).toBeInstanceOf(THREE.Mesh)
+    expect(conGorra.cap).toBeInstanceOf(THREE.Group)
     expect(sinGorra.hasCap).toBe(false)
     expect(sinGorra.cap).toBeNull()
   })
 
   it('respeta la presencia de gorra indicada por opción', () => {
     expect(new PlayerAvatar(0xffffff, { hasCap: true }).cap).toBeInstanceOf(
-      THREE.Mesh,
+      THREE.Group,
     )
     expect(new PlayerAvatar(0xffffff, { hasCap: false }).cap).toBeNull()
   })

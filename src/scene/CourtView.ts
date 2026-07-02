@@ -195,6 +195,17 @@ export class CourtView {
     frameCourt(this.camera)
   }
 
+  /**
+   * Avanza la animación de la pista un fotograma: aplica a cada jugador su
+   * micro-movimiento en reposo (ver `PlayerAvatar.update`). Ligado al `delta`
+   * de tiempo, por lo que es independiente de los FPS.
+   *
+   * @param delta Segundos transcurridos desde el fotograma anterior.
+   */
+  update(delta: number): void {
+    for (const player of this.players) player.update(delta)
+  }
+
   /** Cancela la suscripción del marcador. Llamar al retirar la vista. */
   dispose(): void {
     this.stopScoreboard()

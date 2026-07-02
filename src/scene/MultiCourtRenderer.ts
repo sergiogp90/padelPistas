@@ -22,6 +22,9 @@ export class MultiCourtRenderer {
   private views: CourtView[] = []
   private viewports: Rect[] = []
   private frameHandle = 0
+  // Reloj para medir el tiempo entre fotogramas y animar de forma independiente
+  // de los FPS (ver `CourtView.update`).
+  private readonly clock = new THREE.Clock()
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -57,6 +60,11 @@ export class MultiCourtRenderer {
     })
   }
 
+  /** Avanza la animación de todas las pistas (micro-movimiento de jugadores). */
+  update(delta: number): void {
+    for (const view of this.views) view.update(delta)
+  }
+
   /** Dibuja un fotograma: cada pista en su celda. */
   render(): void {
     for (let i = 0; i < this.views.length; i++) {
@@ -70,8 +78,10 @@ export class MultiCourtRenderer {
 
   /** Arranca el bucle de render con `requestAnimationFrame`. */
   start(): void {
+    this.clock.start()
     const loop = (): void => {
       this.frameHandle = requestAnimationFrame(loop)
+      this.update(this.clock.getDelta())
       this.render()
     }
     loop()

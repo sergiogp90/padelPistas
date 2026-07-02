@@ -168,4 +168,76 @@ describe('PlayerAvatar', () => {
     )
     expect(new PlayerAvatar(0xffffff, { hasCap: false }).cap).toBeNull()
   })
+
+  describe('micro-movimiento en reposo (idle)', () => {
+    it('captura la posición base la primera vez que se actualiza', () => {
+      const avatar = new PlayerAvatar()
+      avatar.position.set(2.5, 0, -8)
+      avatar.update(0.016)
+      expect(avatar.basePosition.toArray()).toEqual([2.5, 0, -8])
+    })
+
+    it('el vaivén horizontal no supera el radio declarado (idleRadius)', () => {
+      const avatar = new PlayerAvatar()
+      avatar.position.set(2.5, 0, -8)
+      avatar.update(0) // fija la base sin avanzar el tiempo
+
+      let maxDist = 0
+      // Muestrea un rango amplio de tiempo para cubrir toda la trayectoria.
+      for (let t = 0; t < 60; t += 0.05) {
+        avatar.update(0.05)
+        const dx = avatar.position.x - avatar.basePosition.x
+        const dz = avatar.position.z - avatar.basePosition.z
+        maxDist = Math.max(maxDist, Math.hypot(dx, dz))
+      }
+      expect(maxDist).toBeLessThanOrEqual(avatar.idleRadius + 1e-9)
+    })
+
+    it('rebota en Y (trote) sin hundir los pies por debajo de la base', () => {
+      const avatar = new PlayerAvatar()
+      avatar.position.set(0, 0, 0)
+      avatar.update(0) // fija la base (y = 0)
+
+      let maxY = 0
+      let minY = Infinity
+      for (let i = 0; i < 400; i++) {
+        avatar.update(0.02)
+        maxY = Math.max(maxY, avatar.position.y)
+        minY = Math.min(minY, avatar.position.y)
+      }
+      // Sube por encima de la base (hay rebote visible)...
+      expect(maxY).toBeGreaterThan(0.02)
+      // ...pero nunca baja de la base (los pies no atraviesan el suelo).
+      expect(minY).toBeGreaterThanOrEqual(0)
+    })
+
+    it('es independiente de los FPS: el mismo tiempo total da la misma posición', () => {
+      const rng = () => 0.42
+      const coarse = new PlayerAvatar(0xffffff, { rng })
+      const fine = new PlayerAvatar(0xffffff, { rng })
+      coarse.position.set(1, 0, 1)
+      fine.position.set(1, 0, 1)
+
+      // 1 s en un solo paso vs. 100 pasos de 10 ms.
+      coarse.update(1)
+      for (let i = 0; i < 100; i++) fine.update(0.01)
+
+      expect(coarse.position.x).toBeCloseTo(fine.position.x, 6)
+      expect(coarse.position.z).toBeCloseTo(fine.position.z, 6)
+    })
+
+    it('desincroniza a jugadores distintos (fases/velocidades diferentes)', () => {
+      const a = new PlayerAvatar(0xffffff, { rng: constantRng(0.1) })
+      const b = new PlayerAvatar(0xffffff, { rng: constantRng(0.8) })
+      a.position.set(0, 0, 0)
+      b.position.set(0, 0, 0)
+      a.update(0.5)
+      b.update(0.5)
+      // Con parámetros distintos, tras el mismo tiempo no coinciden.
+      const same =
+        Math.abs(a.position.x - b.position.x) < 1e-6 &&
+        Math.abs(a.position.z - b.position.z) < 1e-6
+      expect(same).toBe(false)
+    })
+  })
 })

@@ -55,6 +55,32 @@ const SOCK_COLOR = 0xf5f5f5 // espinillas
 const SHOE_COLOR = 0xdedede // pies
 const HANDLE_COLOR = 0x222222 // mango de la pala
 
+// --- Micro-movimiento en reposo (idle) ---------------------------------------
+// Cada avatar se mueve alrededor de su posición base para dar sensación de
+// actividad sin simular el juego real. El desplazamiento combina un vaivén en
+// el plano del suelo (X/Z) con un rebote vertical (Y) que simula un pequeño
+// trote. La desincronización entre jugadores se consigue con amplitudes,
+// frecuencias y fases distintas generadas con el `rng` de cada avatar.
+
+// Amplitud total (m) del vaivén horizontal, repartida entre los ejes X y Z.
+// Como |offset| ≤ ampX + ampZ = amplitud total, ningún jugador se aleja más de
+// este radio (`idleRadius`) de su base.
+const IDLE_MIN_AMPLITUDE = 0.18
+const IDLE_MAX_AMPLITUDE = 0.42
+// Frecuencias angulares (rad/s) → ritmo del vaivén horizontal. Más altas que el
+// micro-movimiento original para que el desplazamiento se perciba con claridad.
+const IDLE_MIN_FREQ = 1.4
+const IDLE_MAX_FREQ = 2.8
+
+// Rebote vertical (trote): el cuerpo sube y baja rítmicamente. Se modela con
+// |sin(...)|, que oscila entre 0 y la amplitud, de modo que el offset en Y es
+// siempre ≥ 0 y los pies nunca bajan de su posición base (no atraviesan el
+// suelo). La frecuencia es más alta que la del vaivén → cadencia de trote.
+const IDLE_BOB_MIN_AMPLITUDE = 0.05
+const IDLE_BOB_MAX_AMPLITUDE = 0.11
+const IDLE_BOB_MIN_FREQ = 4.5
+const IDLE_BOB_MAX_FREQ = 7.5
+
 export interface PlayerAvatarOptions {
   /** Color de la pala. Si se omite, se genera aleatoriamente. */
   racketColor?: THREE.ColorRepresentation
@@ -88,6 +114,27 @@ export class PlayerAvatar extends THREE.Group {
   /** Malla de la gorra, o `null` si no lleva. */
   readonly cap: THREE.Mesh | null
 
+  /**
+   * Posición alrededor de la cual oscila el avatar. Se captura de forma
+   * perezosa la primera vez que se llama a `update()`, para respetar la
+   * posición que le asigne quien lo coloque en la pista tras construirlo.
+   */
+  readonly basePosition = new THREE.Vector3()
+  private baseCaptured = false
+  private idleTime = 0
+  // Parámetros del vaivén en reposo (amplitud/frecuencia/fase por eje).
+  private readonly idle: {
+    ampX: number
+    ampZ: number
+    freqX: number
+    freqZ: number
+    phaseX: number
+    phaseZ: number
+    bobAmp: number
+    bobFreq: number
+    bobPhase: number
+  }
+
   constructor(
     teamColor: THREE.ColorRepresentation = 0xffffff,
     options: PlayerAvatarOptions = {},
@@ -104,6 +151,24 @@ export class PlayerAvatar extends THREE.Group {
 
     // Gorra: la indicada, o decidida al azar.
     this.hasCap = options.hasCap ?? rng() < 0.5
+
+    // Parámetros del micro-movimiento en reposo. La amplitud total se reparte
+    // entre X y Z, y frecuencias/fases se generan al azar para que cada jugador
+    // se mueva con su propio ritmo (desincronizado respecto de los demás).
+    const lerp = (min: number, max: number) => min + rng() * (max - min)
+    const amplitude = lerp(IDLE_MIN_AMPLITUDE, IDLE_MAX_AMPLITUDE)
+    const split = lerp(0.35, 0.65) // reparto X/Z (evita ejes degenerados)
+    this.idle = {
+      ampX: amplitude * split,
+      ampZ: amplitude * (1 - split),
+      freqX: lerp(IDLE_MIN_FREQ, IDLE_MAX_FREQ),
+      freqZ: lerp(IDLE_MIN_FREQ, IDLE_MAX_FREQ),
+      phaseX: rng() * Math.PI * 2,
+      phaseZ: rng() * Math.PI * 2,
+      bobAmp: lerp(IDLE_BOB_MIN_AMPLITUDE, IDLE_BOB_MAX_AMPLITUDE),
+      bobFreq: lerp(IDLE_BOB_MIN_FREQ, IDLE_BOB_MAX_FREQ),
+      bobPhase: rng() * Math.PI * 2,
+    }
 
     // Cuerpo y cabeza.
     this.body = buildBody(teamColor)
@@ -140,6 +205,41 @@ export class PlayerAvatar extends THREE.Group {
   /** Cambia el color de equipo aplicado al material del cuerpo. */
   setTeamColor(teamColor: THREE.ColorRepresentation): void {
     ;(this.body.material as THREE.MeshStandardMaterial).color.set(teamColor)
+  }
+
+  /**
+   * Radio máximo (m) del vaivén horizontal en reposo. Como el desplazamiento es
+   * `ampX·sin(...)` en X y `ampZ·sin(...)` en Z, su distancia a la base en el
+   * plano del suelo nunca supera `ampX + ampZ`. No incluye el rebote vertical.
+   */
+  get idleRadius(): number {
+    return this.idle.ampX + this.idle.ampZ
+  }
+
+  /**
+   * Avanza el movimiento en reposo del avatar un fotograma. Combina un vaivén en
+   * el plano del suelo (X/Z), dentro del radio `idleRadius` alrededor de su
+   * posición base —la que tenía la primera vez que se llamó—, con un rebote
+   * vertical (Y) que simula un pequeño trote. El offset en Y es siempre ≥ 0, de
+   * modo que los pies nunca bajan de su posición base.
+   *
+   * El desplazamiento depende solo del tiempo acumulado, no del número de pasos:
+   * aplicar el mismo `delta` total en uno o en muchos fotogramas produce la
+   * misma posición, de modo que la animación es independiente de los FPS.
+   *
+   * @param delta Segundos transcurridos desde el fotograma anterior.
+   */
+  update(delta: number): void {
+    if (!this.baseCaptured) {
+      this.basePosition.copy(this.position)
+      this.baseCaptured = true
+    }
+    this.idleTime += delta
+    const { ampX, ampZ, freqX, freqZ, phaseX, phaseZ, bobAmp, bobFreq, bobPhase } = this.idle
+    this.position.x = this.basePosition.x + ampX * Math.sin(freqX * this.idleTime + phaseX)
+    this.position.z = this.basePosition.z + ampZ * Math.sin(freqZ * this.idleTime + phaseZ)
+    // Rebote de trote: |sin| ∈ [0, 1] → el cuerpo sube y baja sin hundir los pies.
+    this.position.y = this.basePosition.y + bobAmp * Math.abs(Math.sin(bobFreq * this.idleTime + bobPhase))
   }
 }
 

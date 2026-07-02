@@ -225,6 +225,31 @@ describe('CourtView', () => {
     },
   )
 
+  it('update(delta) aplica el micro-movimiento a cada jugador sin sacarlo de la pista', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source, {}, { scenario: 0 })
+
+    // Posiciones base antes de animar.
+    const bases = view.players.map((p) => p.position.clone())
+
+    // Simula varios fotogramas ligados al delta de tiempo.
+    for (let i = 0; i < 50; i++) view.update(0.05)
+
+    view.players.forEach((player, i) => {
+      const base = bases[i]
+      // Se ha movido respecto de la base...
+      const dist = Math.hypot(
+        player.position.x - base.x,
+        player.position.z - base.z,
+      )
+      expect(dist).toBeGreaterThan(0)
+      // ...pero dentro de su radio pequeño (≤ 0,3 m) y sin salir de la pista.
+      expect(dist).toBeLessThanOrEqual(0.3)
+      expect(Math.abs(player.position.x)).toBeLessThan(5)
+      expect(Math.abs(player.position.z)).toBeLessThan(10)
+    })
+  })
+
   it('monta el marcador con el estado inicial de la fuente', () => {
     const { source } = createFakeSource(buildCourt('Pista Norte', 15))
     const view = new CourtView(source)

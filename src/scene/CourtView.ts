@@ -5,6 +5,8 @@ import { PadelBall } from './PadelBall'
 import { createCamera, frameCourt } from './createCamera'
 import { mountScoreboard } from '../ui/Scoreboard'
 import { TEAM_PALETTE, type TeamColorPair } from './teamColors'
+import { getSkyGradientTexture } from './skyGradient'
+import { createContactShadow, CONTACT_SHADOW_BASE_OPACITY } from './ContactShadow'
 import type { DataSource } from '../data/DataSource'
 
 /**
@@ -148,6 +150,10 @@ export class CourtView {
   readonly players: PlayerAvatar[]
   /** Pelota que va y viene entre los jugadores de equipos contrarios. */
   readonly ball: PadelBall
+  /** Sombras de contacto (falsas) bajo cada jugador, en el mismo orden. */
+  readonly playerShadows: THREE.Mesh[]
+  /** Sombra de contacto (falsa) bajo la pelota; se mueve con ella. */
+  readonly ballShadow: THREE.Mesh
   /** Índice del escenario de posiciones aplicado (0-3, ver `POSITION_SCENARIOS`). */
   readonly scenario: number
   /** Par de colores de equipo aplicado a esta pista (equipo 0 y equipo 1). */
@@ -192,15 +198,45 @@ export class CourtView {
     this.ball = new PadelBall(this.players, teams, { rng })
     this.object3D.add(this.ball)
 
+    // Sombras de contacto (falsas y baratas) para que jugadores y pelota no
+    // parezcan flotar y ganar sensación de apoyo/profundidad sin el coste de
+    // sombras reales. Una estática bajo cada jugador (su micro-movimiento en
+    // reposo es pequeño) y una bajo la pelota que la sigue en cada fotograma.
+    this.playerShadows = this.players.map((player) => {
+      const shadow = createContactShadow(0.45)
+      shadow.position.set(player.position.x, shadow.position.y, player.position.z)
+      this.object3D.add(shadow)
+      return shadow
+    })
+    this.ballShadow = createContactShadow(0.18)
+    this.object3D.add(this.ballShadow)
+
     // Escena propia de la celda: el fondo de cielo, la pista y sus luces. No se
     // comparte con las demás pistas, de modo que cada celda es independiente.
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0x87ceeb)
+    // Fondo en degradado (cielo → horizonte) en vez de un color plano, y una
+    // niebla muy sutil del color del horizonte para dar profundidad atmosférica
+    // a los elementos lejanos sin apagar la pista.
+    this.scene.background = getSkyGradientTexture()
+    this.scene.fog = new THREE.Fog(0xbfe0f2, 40, 150)
     this.scene.add(this.object3D)
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.6))
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
-    directionalLight.position.set(10, 20, 10)
-    this.scene.add(directionalLight)
+
+    // Iluminación con volumen (sin aplanar):
+    //  - Hemisférica: luz de cielo claro por arriba y rebote verdoso del suelo
+    //    por abajo, que da gradiente de tono al modelado (ambiente con volumen).
+    //  - Clave direccional cálida en picado desde un lateral: crea el relieve.
+    //  - Relleno frío tenue desde el lado opuesto: suaviza las sombras propias
+    //    para que ninguna cara quede completamente negra.
+    // Las intensidades están calibradas para el `tone mapping` ACESFilmic del
+    // renderer (ver `MultiCourtRenderer`), que de otro modo oscurecería la escena.
+    const hemisphere = new THREE.HemisphereLight(0xbfe0f2, 0x3a5f2a, 1.1)
+    this.scene.add(hemisphere)
+    const keyLight = new THREE.DirectionalLight(0xfff2e0, 2.4)
+    keyLight.position.set(8, 16, 10)
+    this.scene.add(keyLight)
+    const fillLight = new THREE.DirectionalLight(0xdfe9ff, 0.5)
+    fillLight.position.set(-10, 8, -6)
+    this.scene.add(fillLight)
 
     // Cámara con un aspecto provisional (1:1); el renderer la reencuadra con el
     // aspecto real de su celda vía `frame()` al maquetar la rejilla.
@@ -234,6 +270,23 @@ export class CourtView {
     // La pelota se actualiza tras los jugadores para leer sus posiciones ya
     // avanzadas en este fotograma.
     this.ball.update(delta)
+    this.updateBallShadow()
+  }
+
+  /**
+   * Sitúa la sombra de la pelota bajo su proyección en el suelo y la modula
+   * según la altura: cuanto más alta vuela la pelota, mayor y más difusa (menos
+   * opaca) es su sombra, imitando cómo se abre y desvanece una sombra real al
+   * alejarse el objeto del suelo.
+   */
+  private updateBallShadow(): void {
+    const { x, y, z } = this.ball.position
+    this.ballShadow.position.set(x, this.ballShadow.position.y, z)
+    // k: 0 a ras de suelo → 1 a ~3 m de altura (tope de los arcos de peloteo).
+    const k = THREE.MathUtils.clamp(y / 3, 0, 1)
+    this.ballShadow.scale.setScalar(1 + k * 1.5)
+    const material = this.ballShadow.material as THREE.MeshBasicMaterial
+    material.opacity = CONTACT_SHADOW_BASE_OPACITY * (1 - k * 0.7)
   }
 
   /** Cancela la suscripción del marcador. Llamar al retirar la vista. */

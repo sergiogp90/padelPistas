@@ -82,6 +82,51 @@ describe('CourtView', () => {
     expect(view.scene.children.some((c) => c instanceof THREE.Light)).toBe(true)
   })
 
+  it('usa un fondo de cielo en degradado (textura) en vez de un color plano', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    expect(view.scene.background).toBeInstanceOf(THREE.Texture)
+    // Y niebla sutil para dar profundidad atmosférica.
+    expect(view.scene.fog).toBeInstanceOf(THREE.Fog)
+  })
+
+  it('incluye luz de ambiente con volumen (hemisférica) y direccional', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    const lights = view.scene.children.filter((c) => c instanceof THREE.Light)
+    expect(lights.some((l) => l instanceof THREE.HemisphereLight)).toBe(true)
+    expect(lights.some((l) => l instanceof THREE.DirectionalLight)).toBe(true)
+  })
+
+  it('coloca una sombra de contacto bajo cada jugador y bajo la pelota', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    expect(view.playerShadows).toHaveLength(4)
+    view.playerShadows.forEach((shadow, i) => {
+      expect(view.object3D.children).toContain(shadow)
+      // Bajo el jugador correspondiente (mismo X/Z), a ras de suelo.
+      expect(shadow.position.x).toBeCloseTo(view.players[i].position.x, 5)
+      expect(shadow.position.z).toBeCloseTo(view.players[i].position.z, 5)
+    })
+    expect(view.object3D.children).toContain(view.ballShadow)
+  })
+
+  it('la sombra de la pelota sigue su proyección en el suelo al animar', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source, {}, { scenario: 0 })
+
+    for (let i = 0; i < 10; i++) view.update(0.05)
+
+    expect(view.ballShadow.position.x).toBeCloseTo(view.ball.position.x, 5)
+    expect(view.ballShadow.position.z).toBeCloseTo(view.ball.position.z, 5)
+    // Se queda a ras de suelo aunque la pelota vuele en alto.
+    expect(view.ballShadow.position.y).toBeGreaterThan(0)
+    expect(view.ballShadow.position.y).toBeLessThan(0.1)
+  })
+
   it('posee su propia cámara de perspectiva', () => {
     const { source } = createFakeSource(buildCourt('Pista Central'))
     const view = new CourtView(source)

@@ -206,7 +206,13 @@ export class CourtView {
     // aspecto real de su celda vía `frame()` al maquetar la rejilla.
     this.camera = createCamera(1)
 
-    const scoreboard = mountScoreboard(source)
+    // Marcador overlay coherente con los colores 3D de esta pista: se convierten
+    // los colores de equipo a strings CSS (`#rrggbb`) para el overlay HTML.
+    const scoreboardColors: [string, string] = [
+      new THREE.Color(this.teamColors[0]).getStyle(),
+      new THREE.Color(this.teamColors[1]).getStyle(),
+    ]
+    const scoreboard = mountScoreboard(source, { teamColors: scoreboardColors })
     this.scoreboardEl = scoreboard.el
     this.stopScoreboard = scoreboard.stop
   }

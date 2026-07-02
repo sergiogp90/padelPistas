@@ -100,4 +100,67 @@ describe('createScoreboard', () => {
       ).toHaveLength(0);
     });
   });
+
+  describe('indicador de saque', () => {
+    it('marca exactamente una fila de equipo como al saque', () => {
+      const overlay = createScoreboard(buildCourt(buildMatch()));
+      const serving = overlay.querySelectorAll(
+        '.scoreboard__row--serving:not(.scoreboard__row--header)',
+      );
+      expect(serving).toHaveLength(1);
+      // Y expone una etiqueta accesible del saque.
+      expect(serving[0].querySelector('.scoreboard__serve-label')?.textContent).toBe(
+        'Al saque',
+      );
+    });
+
+    it('el saque corresponde a la paridad de juegos disputados (6+4+3+2=15 → equipo 1)', () => {
+      const overlay = createScoreboard(buildCourt(buildMatch()));
+      const teamRows = overlay.querySelectorAll(
+        '.scoreboard__row:not(.scoreboard__row--header)',
+      );
+      expect(teamRows[0].classList.contains('scoreboard__row--serving')).toBe(false);
+      expect(teamRows[1].classList.contains('scoreboard__row--serving')).toBe(true);
+    });
+  });
+
+  describe('colores de equipo', () => {
+    it('aplica el color de cada equipo a su distintivo cuando se indican', () => {
+      const overlay = createScoreboard(buildCourt(buildMatch()), {
+        teamColors: ['rgb(47, 107, 255)', 'rgb(255, 106, 47)'],
+      });
+      const teamRows = overlay.querySelectorAll(
+        '.scoreboard__row:not(.scoreboard__row--header)',
+      );
+      const chip0 = teamRows[0].querySelector('.scoreboard__chip') as HTMLElement;
+      const chip1 = teamRows[1].querySelector('.scoreboard__chip') as HTMLElement;
+      expect(chip0.style.getPropertyValue('--team-color')).toBe('rgb(47, 107, 255)');
+      expect(chip1.style.getPropertyValue('--team-color')).toBe('rgb(255, 106, 47)');
+    });
+  });
+
+  describe('resalte de cambios', () => {
+    it('marca como cambiada la celda de punto indicada en highlight', () => {
+      const overlay = createScoreboard(buildCourt(buildMatch()), {
+        highlight: {
+          point: [true, false],
+          games: [false, false],
+          sets: [false, false],
+        },
+      });
+      const teamRows = overlay.querySelectorAll(
+        '.scoreboard__row:not(.scoreboard__row--header)',
+      );
+      expect(
+        teamRows[0]
+          .querySelector('.scoreboard__point')
+          ?.classList.contains('scoreboard__value--changed'),
+      ).toBe(true);
+      expect(
+        teamRows[1]
+          .querySelector('.scoreboard__point')
+          ?.classList.contains('scoreboard__value--changed'),
+      ).toBe(false);
+    });
+  });
 });

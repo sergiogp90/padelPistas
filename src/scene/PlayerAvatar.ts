@@ -13,12 +13,21 @@ import * as THREE from 'three'
  *  - **Torso** (cápsula) con el **color de equipo**, rematado por unos
  *    **hombros** anchos y un **cuello** que lo unen con la cabeza para suavizar
  *    la silueta (menos aspecto de «piezas sueltas»).
- *  - **Cabeza** (esfera) con **rostro** (ojos, nariz y boca) y **pelo**.
+ *  - **Cabeza** (esfera) con **rostro** (ojos, nariz y boca) y **pelo**, que
+ *    depende del **género**: los hombres llevan pelo corto (o van calvos, con
+ *    menor probabilidad) y las mujeres, melena larga.
  *  - **Brazos** y **manos** que sujetan una **pala de pádel** con ambas manos.
  *    Las manos insinúan **dedos** agarrando el mango (ya no son esferas lisas).
  *  - **Piernas** con las rodillas ligeramente flexionadas (posición de resto).
- *    Una **pelvis** enlaza el torso con ambos muslos (la cadera) y hay **esferas
- *    de articulación** en cadera, rodilla y tobillo que redondean las uniones.
+ *    Los muslos y espinillas van en **color piel** (se visten con prenda corta),
+ *    con **calcetín** y **zapatilla** en el pie. Una **pelvis** enlaza el torso
+ *    con ambos muslos (la cadera) y hay **esferas de articulación** en cadera,
+ *    rodilla y tobillo que redondean las uniones.
+ *  - **Prenda inferior** según el género: **calzonas cortas** en los hombres
+ *    (dejan ver el color carne de muslo y espinilla) o **falda deportiva**
+ *    acampanada en las mujeres.
+ *  - **Pecho** con curvas (dos volúmenes suaves con el color de equipo) solo en
+ *    las mujeres.
  *  - **Gorra** opcional, determinada aleatoriamente al crear el avatar.
  *
  * **Jerarquía por articulaciones (pensada para un rig futuro):** brazos y
@@ -67,14 +76,22 @@ const HEAD_SEGMENTS = 12
 const LIMB_SEGMENTS = 6
 
 // --- Colores -----------------------------------------------------------------
-const SKIN_COLOR = 0xf1c9a5 // cabeza y manos
+const SKIN_COLOR = 0xf1c9a5 // cabeza, manos y piernas (se ven al vestir corto)
 const HAIR_COLOR = 0x2e1c10
 const EYE_COLOR = 0x1a1a1a
 const MOUTH_COLOR = 0x8a4b3c
-const SHORTS_COLOR = 0x33373f // muslos
-const SOCK_COLOR = 0xf5f5f5 // espinillas
+const SHORTS_COLOR = 0x33373f // calzonas (hombre)
+const SOCK_COLOR = 0xf5f5f5 // calcetín (tobillo)
 const SHOE_COLOR = 0xdedede // pies
 const HANDLE_COLOR = 0x1b1b1b // grip (puño) de la pala, oscuro
+
+// --- Género y variantes ------------------------------------------------------
+/** Género del jugador, que selecciona el diseño del avatar. */
+export type PlayerGender = 'male' | 'female'
+
+// Probabilidad de que un hombre sea calvo. Menor que la de tener pelo, tal como
+// pide el diseño («menor % de ser calvo»).
+const BALD_PROBABILITY = 0.2
 
 // --- Micro-movimiento en reposo (idle) ---------------------------------------
 // Cada avatar se mueve alrededor de su posición base para dar sensación de
@@ -107,6 +124,18 @@ export interface PlayerAvatarOptions {
   racketColor?: THREE.ColorRepresentation
   /** Si lleva gorra. Si se omite, se decide aleatoriamente. */
   hasCap?: boolean
+  /**
+   * Género del jugador, que decide el diseño (pelo, ropa y silueta). Si se
+   * omite, se elige al azar. Pensado para alimentarse en el futuro desde el
+   * datasource, donde cada jugador indicará su género.
+   */
+  gender?: PlayerGender
+  /**
+   * Fuerza que un hombre sea (o no) calvo. Solo aplica a `gender: 'male'`; se
+   * ignora en mujeres (siempre con pelo largo). Si se omite, se decide al azar
+   * con probabilidad {@link BALD_PROBABILITY}.
+   */
+  isBald?: boolean
   /** Fuente de aleatoriedad (inyectable para tests). Por defecto Math.random. */
   rng?: () => number
 }
@@ -138,8 +167,23 @@ export class PlayerAvatar extends THREE.Group {
   readonly nose: THREE.Mesh
   /** Boca del rostro. */
   readonly mouth: THREE.Mesh
-  /** Pelo (casquete). */
-  readonly hair: THREE.Mesh
+  /**
+   * Pelo del avatar. En los hombres con pelo es un casquete (`THREE.Mesh`); en
+   * las mujeres, un grupo con casquete + melena (`THREE.Group`); en los hombres
+   * calvos es `null`.
+   */
+  readonly hair: THREE.Object3D | null
+  /** Género del avatar (decide el diseño de pelo, ropa y silueta). */
+  readonly gender: PlayerGender
+  /** Si el avatar es calvo (solo posible en hombres). */
+  readonly isBald: boolean
+  /**
+   * Prenda inferior: calzonas cortas (hombre) o falda deportiva (mujer). La
+   * falda va en color de equipo; las calzonas, en su color propio.
+   */
+  readonly lowerGarment: THREE.Mesh
+  /** Curvas del pecho (color de equipo), o `null` en los hombres. */
+  readonly chest: THREE.Group | null
   /** Si el avatar lleva gorra. */
   readonly hasCap: boolean
   /** Grupo de la gorra (copa + visera), o `null` si no lleva. */
@@ -180,6 +224,14 @@ export class PlayerAvatar extends THREE.Group {
         ? new THREE.Color(options.racketColor)
         : new THREE.Color().setHSL(rng(), 0.7, 0.5)
 
+    // Género: el indicado o uno al azar (50/50). En el futuro llegará del
+    // datasource; hoy se reparte al azar para poblar la pista con ambos.
+    this.gender = options.gender ?? (rng() < 0.5 ? 'male' : 'female')
+
+    // Calvicie: solo posible en hombres y con probabilidad reducida.
+    this.isBald =
+      this.gender === 'male' && (options.isBald ?? rng() < BALD_PROBABILITY)
+
     // Gorra: la indicada, o decidida al azar.
     this.hasCap = options.hasCap ?? rng() < 0.5
 
@@ -207,15 +259,16 @@ export class PlayerAvatar extends THREE.Group {
     this.neck = buildNeck()
     this.head = buildHead()
 
-    // Rostro y pelo (hijos de la cabeza para moverse con ella).
+    // Rostro y pelo (hijos de la cabeza para moverse con ella). El pelo depende
+    // del género (corto/calvo en hombres, melena en mujeres).
     this.eyes = buildEyes()
     this.nose = buildNose()
     this.mouth = buildMouth()
-    this.hair = buildHair()
+    this.hair = buildHair(this.gender, this.isBald)
     this.eyes.forEach((eye) => this.head.add(eye))
     this.head.add(this.nose)
     this.head.add(this.mouth)
-    this.head.add(this.hair)
+    if (this.hair) this.head.add(this.hair)
 
     // Gorra opcional (también hija de la cabeza).
     if (this.hasCap) {
@@ -224,6 +277,15 @@ export class PlayerAvatar extends THREE.Group {
     } else {
       this.cap = null
     }
+
+    // Prenda inferior según el género: calzonas cortas (hombre) o falda
+    // deportiva (mujer). Se coloca sobre la pelvis, dejando las piernas de piel
+    // a la vista por debajo.
+    this.lowerGarment =
+      this.gender === 'male' ? buildShorts() : buildSkirt(teamColor)
+
+    // Curvas del pecho, solo en las mujeres (color de equipo, como el torso).
+    this.chest = this.gender === 'female' ? buildChest(teamColor) : null
 
     // Extremidades (jerarquía articulada) y pala.
     this.legs = buildLegs()
@@ -235,18 +297,32 @@ export class PlayerAvatar extends THREE.Group {
     this.racketFace = racketBuild.face
 
     this.add(this.legs)
+    this.add(this.lowerGarment)
     this.add(this.body)
     this.add(this.shoulders)
     this.add(this.neck)
+    if (this.chest) this.add(this.chest)
     this.add(this.arms)
     this.add(this.head)
     this.add(this.racket)
   }
 
-  /** Cambia el color de equipo aplicado a torso y hombros. */
+  /**
+   * Cambia el color de equipo aplicado a las prendas: torso, hombros y —en las
+   * mujeres— el pecho y la falda deportiva (las calzonas de los hombres llevan
+   * color propio y no se ven afectadas).
+   */
   setTeamColor(teamColor: THREE.ColorRepresentation): void {
     ;(this.body.material as THREE.MeshStandardMaterial).color.set(teamColor)
     ;(this.shoulders.material as THREE.MeshStandardMaterial).color.set(teamColor)
+    if (this.gender === 'female') {
+      ;(this.lowerGarment.material as THREE.MeshStandardMaterial).color.set(teamColor)
+      this.chest?.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          ;(obj.material as THREE.MeshStandardMaterial).color.set(teamColor)
+        }
+      })
+    }
   }
 
   /**
@@ -362,9 +438,23 @@ function buildMouth(): THREE.Mesh {
   return mouth
 }
 
-function buildHair(): THREE.Mesh {
+/**
+ * Pelo del avatar según el género:
+ *  - **Hombre con pelo**: casquete corto (media esfera sobre la coronilla).
+ *  - **Hombre calvo**: sin pelo (`null`); asoma la cabeza (color piel).
+ *  - **Mujer**: melena larga = casquete + una masa que cae por detrás de la
+ *    cabeza hasta la altura de los hombros/espalda.
+ *
+ * Devuelve un `THREE.Mesh` (pelo corto), un `THREE.Group` (melena) o `null`
+ * (calvo).
+ */
+function buildHair(gender: PlayerGender, isBald: boolean): THREE.Object3D | null {
+  if (isBald) return null
+
+  const mat = new THREE.MeshStandardMaterial({ color: HAIR_COLOR })
+
   // Casquete: media esfera algo mayor que la cabeza cubriendo la parte alta.
-  const geo = new THREE.SphereGeometry(
+  const capGeo = new THREE.SphereGeometry(
     HEAD_RADIUS + 0.008,
     HEAD_SEGMENTS,
     HEAD_SEGMENTS,
@@ -373,11 +463,23 @@ function buildHair(): THREE.Mesh {
     0,
     Math.PI * 0.55,
   )
-  const mat = new THREE.MeshStandardMaterial({ color: HAIR_COLOR })
-  const hair = new THREE.Mesh(geo, mat)
+  const cap = new THREE.Mesh(capGeo, mat)
   // Ligeramente retrasado para dejar el rostro despejado.
-  hair.position.set(0, 0, -0.01)
-  return hair
+  cap.position.set(0, 0, -0.01)
+
+  if (gender === 'male') return cap // pelo corto
+
+  // Mujer: melena. Al casquete se le añade una masa alargada por detrás que cae
+  // hasta la espalda. Es una cápsula vertical, aplanada contra la espalda (menor
+  // grosor en Z) y desplazada hacia atrás para envolver la nuca sin tapar la cara.
+  const group = new THREE.Group()
+  group.add(cap)
+  const maneGeo = new THREE.CapsuleGeometry(0.12, 0.26, BODY_SEGMENTS / 2, BODY_SEGMENTS)
+  const mane = new THREE.Mesh(maneGeo, mat)
+  mane.scale.set(1, 1, 0.55)
+  mane.position.set(0, -0.16, -0.07)
+  group.add(mane)
+  return group
 }
 
 // Inclinación de la copa hacia atrás (rad). Un borde horizontal no puede quedar
@@ -429,6 +531,11 @@ function buildCap(teamColor: THREE.ColorRepresentation): THREE.Group {
  * `tobillo` con el pie. Así cada articulación es un `THREE.Group` propio,
  * preparado para un rig futuro. La pose es estática (rodillas flexionadas).
  *
+ * Muslos y espinillas van en **color piel**: la ropa (calzonas o falda) es una
+ * prenda corta aparte que cubre solo la cadera, de modo que ambas «piezas» de la
+ * pierna quedan a la vista, como pide el diseño. El tobillo lleva un pequeño
+ * **calcetín** y el pie una **zapatilla**.
+ *
  * Para que la figura no parezca un ensamblado de cilindros sueltos, las uniones
  * se redondean con **esferas de articulación** en cadera, rodilla y tobillo, y
  * una **pelvis** (cápsula horizontal, como los hombros) enlaza el torso con
@@ -438,7 +545,7 @@ function buildCap(teamColor: THREE.ColorRepresentation): THREE.Group {
  */
 function buildLegs(): THREE.Group {
   const group = new THREE.Group()
-  const shortsMat = new THREE.MeshStandardMaterial({ color: SHORTS_COLOR })
+  const skinMat = new THREE.MeshStandardMaterial({ color: SKIN_COLOR })
   const sockMat = new THREE.MeshStandardMaterial({ color: SOCK_COLOR })
   const shoeMat = new THREE.MeshStandardMaterial({ color: SHOE_COLOR })
   const origin = new THREE.Vector3(0, 0, 0)
@@ -446,9 +553,10 @@ function buildLegs(): THREE.Group {
   // Pelvis/cadera: cápsula horizontal que une el torso con ambos muslos (mismo
   // recurso que los hombros arriba). Se solapa con la base del torso y con la
   // parte alta de los muslos, cerrando el hueco que quedaba entre las piernas.
+  // Va en color piel porque la prenda (calzonas/falda) la cubre por fuera.
   const pelvis = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.12, 0.14, BODY_SEGMENTS / 2, BODY_SEGMENTS),
-    shortsMat,
+    skinMat,
   )
   pelvis.rotation.z = Math.PI / 2 // tumbada de cadera a cadera (eje X)
   pelvis.scale.set(1, 1, 0.85)
@@ -464,17 +572,17 @@ function buildLegs(): THREE.Group {
 
     const hip = new THREE.Group()
     hip.position.copy(hipPos)
-    hip.add(jointSphere(0.1, shortsMat)) // articulación de cadera (ball joint)
-    hip.add(cylinderBetween(origin, kneePos.clone().sub(hipPos), 0.09, shortsMat)) // muslo
+    hip.add(jointSphere(0.1, skinMat)) // articulación de cadera (ball joint)
+    hip.add(cylinderBetween(origin, kneePos.clone().sub(hipPos), 0.09, skinMat)) // muslo (piel)
 
     const knee = new THREE.Group()
     knee.position.copy(kneePos.clone().sub(hipPos))
-    knee.add(jointSphere(0.08, sockMat)) // rodilla
-    knee.add(cylinderBetween(origin, anklePos.clone().sub(kneePos), 0.07, sockMat)) // espinilla
+    knee.add(jointSphere(0.08, skinMat)) // rodilla
+    knee.add(cylinderBetween(origin, anklePos.clone().sub(kneePos), 0.07, skinMat)) // espinilla (piel)
 
     const ankle = new THREE.Group()
     ankle.position.copy(anklePos.clone().sub(kneePos))
-    ankle.add(jointSphere(0.062, sockMat)) // tobillo
+    ankle.add(jointSphere(0.062, sockMat)) // tobillo con calcetín
     // Pie: caja apoyada en el suelo, adelantada respecto del tobillo.
     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.24), shoeMat)
     foot.position.set(0, -0.06, 0.06)
@@ -485,6 +593,59 @@ function buildLegs(): THREE.Group {
     group.add(hip)
   }
 
+  return group
+}
+
+/**
+ * Calzonas cortas (hombres): tronco de cono abierto y ceñido que cubre la cadera
+ * y el arranque de los muslos, dejando a la vista el color piel del resto de la
+ * pierna (muslo y espinilla). Color propio, independiente del equipo.
+ */
+function buildShorts(): THREE.Mesh {
+  const geo = new THREE.CylinderGeometry(0.19, 0.23, 0.22, BODY_SEGMENTS * 2, 1, true)
+  const mat = new THREE.MeshStandardMaterial({
+    color: SHORTS_COLOR,
+    side: THREE.DoubleSide,
+  })
+  const shorts = new THREE.Mesh(geo, mat)
+  // Centradas sobre la cadera: cubren de ~0,72 a ~0,94 m (parte alta del muslo).
+  shorts.position.y = HIP_Y - 0.02
+  return shorts
+}
+
+/**
+ * Falda deportiva (mujeres): tronco de cono abierto y acampanado que cae desde
+ * la cadera, más ancho y largo que las calzonas. Va en color de equipo (parte
+ * del uniforme), por lo que `setTeamColor` la recolorea.
+ */
+function buildSkirt(teamColor: THREE.ColorRepresentation): THREE.Mesh {
+  const geo = new THREE.CylinderGeometry(0.17, 0.31, 0.26, BODY_SEGMENTS * 2, 1, true)
+  const mat = new THREE.MeshStandardMaterial({
+    color: teamColor,
+    side: THREE.DoubleSide,
+  })
+  const skirt = new THREE.Mesh(geo, mat)
+  // Cae desde la cadera y se abre hacia abajo (vuelo).
+  skirt.position.y = HIP_Y - 0.05
+  return skirt
+}
+
+/**
+ * Curvas del pecho (mujeres): dos volúmenes suaves (medias esferas ligeramente
+ * aplanadas) sobre la parte alta del torso, en color de equipo (como la
+ * camiseta). Se devuelven en un grupo para poder recolorearlos en bloque.
+ */
+function buildChest(teamColor: THREE.ColorRepresentation): THREE.Group {
+  const group = new THREE.Group()
+  const mat = new THREE.MeshStandardMaterial({ color: teamColor })
+  const geo = new THREE.SphereGeometry(0.075, BODY_SEGMENTS, BODY_SEGMENTS)
+  for (const side of [-1, 1]) {
+    const bust = new THREE.Mesh(geo, mat)
+    // Sobre la parte alta del torso, apenas sobresaliendo hacia delante (+Z).
+    bust.position.set(0.07 * side, 1.28, 0.11)
+    bust.scale.set(1, 0.9, 0.8)
+    group.add(bust)
+  }
   return group
 }
 

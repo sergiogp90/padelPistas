@@ -168,6 +168,27 @@ describe('CourtView', () => {
     }
   })
 
+  it('aplica el par de colores indicado en las opciones', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const teamColors = [0x123456, 0xabcdef] as const
+    const view = new CourtView(source, {}, { teamColors })
+
+    expect(view.teamColors).toEqual(teamColors)
+    for (const player of view.players) {
+      const color = (player.body.material as THREE.MeshStandardMaterial).color.getHex()
+      const nearSide = player.position.z < 0
+      const expected = new THREE.Color(nearSide ? teamColors[0] : teamColors[1]).getHex()
+      expect(color).toBe(expected)
+    }
+  })
+
+  it('usa TEAM_COLORS (azul/naranja) por defecto', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    expect(view.teamColors).toEqual(TEAM_COLORS)
+  })
+
   it('orienta al equipo lejano (Z>0) mirando hacia la red', () => {
     const { source } = createFakeSource(buildCourt('Pista Central'))
     const view = new CourtView(source)

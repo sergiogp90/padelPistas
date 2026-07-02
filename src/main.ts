@@ -1,5 +1,6 @@
 import './style.css'
 import { CourtView } from './scene/CourtView'
+import { assignTeamColors } from './scene/teamColors'
 import { MultiCourtRenderer } from './scene/MultiCourtRenderer'
 import { gridShape } from './scene/gridLayout'
 import { createMockDataSources } from './data/createMockDataSources'
@@ -9,8 +10,13 @@ const COURT_COUNT = 4
 
 // Una fuente de datos y una vista por pista. Cada `CourtView` es autocontenida
 // (su escena, su cámara y su marcador); el renderer las dibuja en un único canvas.
+// A cada pista se le asigna un par de colores único para que ningún color de
+// equipo se repita entre pistas distintas.
 const sources = createMockDataSources(COURT_COUNT)
-const views = sources.map((source) => new CourtView(source))
+const teamColors = assignTeamColors(COURT_COUNT)
+const views = sources.map(
+  (source, i) => new CourtView(source, {}, { teamColors: teamColors[i] }),
+)
 
 const app = new MultiCourtRenderer()
 document.body.appendChild(app.domElement)

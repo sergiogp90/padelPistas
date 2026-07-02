@@ -3,16 +3,19 @@ import { PadelCourt } from './PadelCourt'
 import { PlayerAvatar } from './PlayerAvatar'
 import { createCamera, frameCourt } from './createCamera'
 import { mountScoreboard } from '../ui/Scoreboard'
+import { TEAM_PALETTE, type TeamColorPair } from './teamColors'
 import type { DataSource } from '../data/DataSource'
 
 /**
- * Color de cada equipo, indexado por equipo (0 y 1). Coherente con el orden que
- * usa el marcador (`teams[0]` vs `teams[1]`): el primer equipo es azul y el
- * segundo, naranja. Se exporta para poder reutilizarlo en otras vistas si el
- * marcador quiere colorear sus filas igual que los avatares de la pista.
+ * Par de colores por defecto de una pista, indexado por equipo (0 y 1) y
+ * coherente con el orden que usa el marcador (`teams[0]` vs `teams[1]`): el
+ * primer equipo es azul y el segundo, naranja. Es el primer par de
+ * `TEAM_PALETTE`; se usa cuando no se indica `CourtViewOptions.teamColors`.
+ *
+ * Para mostrar varias pistas con colores distintos (sin repetir entre pistas)
+ * usa `assignTeamColors` y pásale a cada `CourtView` su par por opciones.
  */
-export const TEAM_COLORS: readonly [THREE.ColorRepresentation, THREE.ColorRepresentation] =
-  [0x2f6bff, 0xff6a2f]
+export const TEAM_COLORS: TeamColorPair = [TEAM_PALETTE[0], TEAM_PALETTE[1]]
 
 /**
  * Posición base de un jugador dentro de la pista (metros, relativas al centro).
@@ -116,6 +119,13 @@ export interface CourtViewOptions {
   scenario?: number
   /** Fuente de aleatoriedad (inyectable para tests). Por defecto Math.random. */
   rng?: () => number
+  /**
+   * Par de colores de los dos equipos de esta pista (equipo 0 y equipo 1). Si
+   * se omite, se usa `TEAM_COLORS` (azul/naranja). Para no repetir colores
+   * entre pistas, genera los pares con `assignTeamColors` y asigna uno a cada
+   * `CourtView`.
+   */
+  teamColors?: TeamColorPair
 }
 
 /**
@@ -137,6 +147,8 @@ export class CourtView {
   readonly players: PlayerAvatar[]
   /** Índice del escenario de posiciones aplicado (0-3, ver `POSITION_SCENARIOS`). */
   readonly scenario: number
+  /** Par de colores de equipo aplicado a esta pista (equipo 0 y equipo 1). */
+  readonly teamColors: TeamColorPair
   /** Overlay HTML del marcador. Insértalo en el DOM (p. ej. `document.body`). */
   readonly scoreboardEl: HTMLElement
 
@@ -154,10 +166,13 @@ export class CourtView {
     this.scenario =
       options.scenario ?? Math.floor(rng() * POSITION_SCENARIOS.length)
 
+    // Colores de los dos equipos de esta pista: los indicados o azul/naranja.
+    this.teamColors = options.teamColors ?? TEAM_COLORS
+
     // 4 jugadores según el escenario elegido, con el color de su equipo.
     // Se añaden al sub-árbol de la pista para que se muevan con la celda.
     this.players = slotsForScenario(POSITION_SCENARIOS[this.scenario]).map((slot) => {
-      const avatar = new PlayerAvatar(TEAM_COLORS[slot.team])
+      const avatar = new PlayerAvatar(this.teamColors[slot.team])
       avatar.position.set(slot.x, 0, slot.z)
       // El avatar mira hacia +Z por defecto; el equipo de la mitad lejana (Z>0)
       // gira 180° para encarar la red y quedar frente a sus rivales.

@@ -1,9 +1,17 @@
 /* Marcador overlay: capa HTML/CSS superpuesta al canvas 3D.
  *
  * Pensado para verse en una TV a varios metros de distancia: alto contraste,
- * tipografía grande y unidades relativas a la anchura de la pantalla (vw) para
- * que escale igual en cualquier televisión. La paleta y la tipografía vienen de
- * los tokens base (`src/style.css`). */
+ * tipografía grande y unidades relativas a la anchura de SU CELDA (`cqw`, la
+ * unidad de *container query*) para que escale igual sea cual sea el número de
+ * pistas en la rejilla. La paleta y la tipografía vienen de los tokens base
+ * (`src/style.css`).
+ *
+ * Por qué `cqw` y no `vw`: con una sola pista (celda a pantalla completa)
+ * `1cqw == 1vw`, así que la vista de una pista no cambia; pero con varias pistas
+ * cada marcador se dimensiona respecto a su celda y no respecto a la ventana, de
+ * modo que ocupa siempre la misma fracción de su celda sin necesidad de un
+ * `transform: scale()` extra (que emborrona el texto y depende del nº de
+ * columnas). */
 
 /* Rejilla de overlays de marcador, superpuesta al canvas 3D a pantalla
  * completa. Es una rejilla CSS que reparte las celdas igual que el renderer
@@ -25,30 +33,31 @@
   pointer-events: none;
 }
 
-/* Una celda de la rejilla: ancestro posicionado del marcador de su pista. La
- * escala (`--court-scale`) reduce el marcador en proporción al número de
- * columnas para que quepa en su celda sin invadir a las vecinas. */
+/* Una celda de la rejilla: ancestro posicionado del marcador de su pista y
+ * contenedor de consulta (`container-type: inline-size`), de modo que las
+ * unidades `cqw` del marcador se resuelven contra el ancho de ESTA celda. Así el
+ * marcador se dimensiona a la celda automáticamente al maquetar o redimensionar,
+ * sin escalado manual desde JS. */
 .court-cell {
   position: relative;
+  container-type: inline-size;
 }
 
 .scoreboard {
   position: absolute;
   top: 2.5%;
   left: 2.5%;
-  transform: scale(var(--court-scale, 1));
-  transform-origin: top left;
 
   display: inline-grid;
-  gap: 0.4vw;
-  padding: 1.2vw 1.6vw;
+  gap: 0.4cqw;
+  padding: 1.2cqw 1.6cqw;
 
   font-family: var(--font-family);
   color: var(--color-text);
   background: var(--color-surface);
-  border-radius: 0.9vw;
-  border: 0.1vw solid var(--color-border);
-  box-shadow: 0 0.4vw 2vw rgba(0, 0, 0, 0.45);
+  border-radius: 0.9cqw;
+  border: 0.1cqw solid var(--color-border);
+  box-shadow: 0 0.4cqw 2cqw rgba(0, 0, 0, 0.45);
 
   /* No interceptar el ratón sobre el canvas 3D. */
   pointer-events: none;
@@ -56,44 +65,44 @@
 }
 
 .scoreboard__title {
-  font-size: 1.5vw;
+  font-size: 1.5cqw;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-accent);
-  padding-bottom: 0.4vw;
-  border-bottom: 0.1vw solid rgba(255, 255, 255, 0.15);
+  padding-bottom: 0.4cqw;
+  border-bottom: 0.1cqw solid rgba(255, 255, 255, 0.15);
 }
 
 .scoreboard__empty {
-  font-size: 1.6vw;
+  font-size: 1.6cqw;
   font-weight: 600;
   color: var(--color-text-dim);
-  padding-top: 0.6vw;
+  padding-top: 0.6cqw;
 }
 
 /* Cada fila: nombres | juegos por set | sets | punto. */
 .scoreboard__row {
   display: grid;
-  grid-template-columns: 22vw auto 4vw 6vw;
+  grid-template-columns: 22cqw auto 4cqw 6cqw;
   align-items: center;
-  gap: 1vw;
+  gap: 1cqw;
   /* Más alto por fila para dar aire al texto de cada pareja. */
-  padding: 0.95vw 0;
+  padding: 0.95cqw 0;
 }
 
 .scoreboard__row + .scoreboard__row {
-  border-top: 0.1vw solid rgba(255, 255, 255, 0.1);
+  border-top: 0.1cqw solid rgba(255, 255, 255, 0.1);
 }
 
 /* Cabecera de columnas: pequeña y discreta. */
 .scoreboard__row--header {
-  padding: 0 0 0.2vw;
+  padding: 0 0 0.2cqw;
 }
 
 .scoreboard__label,
 .scoreboard__row--header .scoreboard__game {
-  font-size: 0.85vw !important;
+  font-size: 0.85cqw !important;
   font-weight: 600 !important;
   color: var(--color-text-faint) !important;
   text-transform: uppercase;
@@ -109,7 +118,7 @@
 }
 
 .scoreboard__player {
-  font-size: 1.7vw;
+  font-size: 1.7cqw;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -117,20 +126,20 @@
   /* Interlineado holgado y un poco de relleno vertical para que `overflow:
    * hidden` no recorte los descendentes (la "g" de "Miguel", la "j", etc.). */
   line-height: 1.4;
-  padding: 0.15vw 0;
+  padding: 0.15cqw 0;
 }
 
 /* Juegos por set: una celda por set, detalle secundario. */
 .scoreboard__games {
   display: flex;
-  gap: 0.6vw;
+  gap: 0.6cqw;
   justify-content: flex-end;
 }
 
 .scoreboard__game {
-  min-width: 2.4vw;
+  min-width: 2.4cqw;
   text-align: center;
-  font-size: 1.6vw;
+  font-size: 1.6cqw;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: rgba(255, 255, 255, 0.85);
@@ -144,7 +153,7 @@
 /* Sets ganados: destacado. */
 .scoreboard__sets {
   text-align: center;
-  font-size: 2vw;
+  font-size: 2cqw;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--color-accent);
@@ -153,11 +162,11 @@
 /* Punto actual: el elemento más prominente. */
 .scoreboard__point {
   text-align: center;
-  font-size: 2.2vw;
+  font-size: 2.2cqw;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--color-bg);
   background: var(--color-accent);
-  border-radius: 0.5vw;
-  padding: 0.2vw 0.4vw;
+  border-radius: 0.5cqw;
+  padding: 0.2cqw 0.4cqw;
 }

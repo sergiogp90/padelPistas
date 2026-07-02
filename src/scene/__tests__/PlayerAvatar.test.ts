@@ -127,6 +127,20 @@ describe('PlayerAvatar', () => {
     expect(dir.z).toBeGreaterThan(dir.y)
   })
 
+  it('mantiene la cara de la pala vertical, de canto (normal ≈ eje X)', () => {
+    const avatar = new PlayerAvatar()
+    avatar.updateMatrixWorld(true)
+    const q = avatar.racket.getWorldQuaternion(new THREE.Quaternion())
+    // Normal de la cara de la pala (local +Z) expresada en el mundo.
+    const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(q).normalize()
+    // La cara mira al lateral (±X): el canto lateral queda perpendicular a X.
+    expect(Math.abs(normal.x)).toBeGreaterThan(0.9)
+    expect(Math.abs(normal.y)).toBeLessThan(0.2)
+    // El eje de la pala (local +Y) sigue apuntando hacia delante (+Z).
+    const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize()
+    expect(axis.z).toBeGreaterThan(0.7)
+  })
+
   it('genera un color de pala aleatorio a partir del rng', () => {
     const a = new PlayerAvatar(0xffffff, { rng: constantRng(0.1) })
     const b = new PlayerAvatar(0xffffff, { rng: constantRng(0.8) })

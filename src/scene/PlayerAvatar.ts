@@ -311,7 +311,14 @@ function buildRacket(color: THREE.Color): THREE.Group {
   // Se agarra entre las manos y se estira hacia DELANTE (casi horizontal, con
   // una ligera inclinación hacia arriba), como en la posición de resto/espera.
   // Construida apuntando a +Y, se lleva a +Z girando ~+90° en el eje X.
+  //
+  // Además se gira 90° sobre su propio eje longitudinal (rotation.y, aplicado
+  // antes que rotation.x con el orden Euler 'XYZ') para poner la cara de la pala
+  // VERTICAL de canto: la cara (normal local +Z) queda apuntando al lateral (±X)
+  // y el canto lateral perpendicular al eje X, como una pala en posición de
+  // espera vista desde el lado (ver foto de referencia), en vez de tumbada.
   group.position.set(0, 1.18, 0.46)
+  group.rotation.y = Math.PI / 2
   group.rotation.x = Math.PI / 2 - 0.28
 
   return group

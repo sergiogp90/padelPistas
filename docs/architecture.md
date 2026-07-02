@@ -15,7 +15,11 @@
 src/
   types/    Tipos del dominio (Court, Match, Team, Player, Score)
   data/     Fuentes de datos (mock hoy; interfaz DataSource en M2)
-  scene/    Construcción de la escena 3D (pista, cámara, luces)
+  scene/    Escena 3D y render multipista:
+              PadelCourt          pista 3D reutilizable
+              CourtView           una pista autocontenida (escena + cámara + marcador)
+              gridLayout          aritmética de la rejilla de celdas (sin Three.js/DOM)
+              MultiCourtRenderer  un único renderer que dibuja cada CourtView en su celda
   ui/       Capa de interfaz superpuesta (marcador)
   main.ts   Punto de entrada que ensambla todo
 ```
@@ -48,14 +52,27 @@ canvas, no como texto dentro de la escena 3D.
 *Por qué:* el texto HTML es nítido, accesible y mucho más fácil de maquetar para
 que se lea bien en una TV, frente al texto renderizado en WebGL.
 
-### 3. La pista 3D es un componente reutilizable
-La construcción de una pista se encapsula en una función/clase que se puede
-instanciar varias veces.
+### 3. La pista 3D es un componente reutilizable (`PadelCourt` / `CourtView`)
+La pista 3D se encapsula en `PadelCourt`, instanciable varias veces. Sobre ella,
+`CourtView` representa **una pista autocontenida**: su propia escena, su cámara
+de retransmisión, sus luces y su marcador, todo vinculado a un `DataSource`.
 
-*Por qué:* el hito M3 necesita mostrar N pistas; encapsular desde el principio
-evita reescribir el render.
+*Por qué:* el hito M3 necesita mostrar N pistas independientes; encapsular cada
+pista como una vista autónoma evita compartir estado 3D entre pistas y deja al
+contenedor (`main.ts`) solo la tarea de orquestar la rejilla.
 
-### 4. Avatares estilizados y posiciones representativas
+### 4. Render multipista: un único renderer con un *viewport* por celda
+Todas las pistas se dibujan con un **único `WebGLRenderer`** a pantalla completa.
+La pantalla se reparte en una rejilla de celdas (`gridLayout`) y cada `CourtView`
+se pinta en su celda con `setViewport`/`setScissor` (`MultiCourtRenderer`). Los
+marcadores son una rejilla CSS superpuesta con la misma forma (columnas × filas).
+
+*Por qué:* crear un renderer por pista chocaría con el límite de contextos WebGL
+del navegador (~8–16) y penalizaría el rendimiento. Decisión detallada en el
+[ADR 0001](decisions/0001-render-multipista-un-renderer-viewports.md)
+(alternativa descartada: N renderers).
+
+### 5. Avatares estilizados y posiciones representativas
 Los jugadores serán figuras simples (low-poly / cápsulas / sprites) colocadas en
 sus zonas, sin tracking real.
 
@@ -63,5 +80,7 @@ sus zonas, sin tracking real.
 
 ---
 
-> 💡 Las decisiones importantes futuras pueden documentarse como **ADRs**
-> (*Architecture Decision Records*) en `docs/decisions/`, un archivo por decisión.
+> 💡 Las decisiones importantes se documentan como **ADRs**
+> (*Architecture Decision Records*) en [`docs/decisions/`](decisions/), un
+> archivo por decisión. Ver el [ADR 0001 — render
+> multipista](decisions/0001-render-multipista-un-renderer-viewports.md).

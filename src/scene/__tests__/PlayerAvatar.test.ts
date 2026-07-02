@@ -160,9 +160,11 @@ describe('PlayerAvatar', () => {
 
   it('tiene dos piernas con pies (jerarquía cadera→rodilla→pie)', () => {
     const avatar = new PlayerAvatar()
-    // Un grupo de cadera por pierna, articulado con rodilla y tobillo anidados.
-    expect(avatar.legs.children).toHaveLength(2)
-    for (const hip of avatar.legs.children) {
+    // Un grupo de cadera por pierna (más la pelvis, que es una malla suelta que
+    // une el torso con ambos muslos), articulado con rodilla y tobillo anidados.
+    const hips = avatar.legs.children.filter((c) => c instanceof THREE.Group)
+    expect(hips).toHaveLength(2)
+    for (const hip of hips) {
       expect(hip).toBeInstanceOf(THREE.Group)
       const knee = hip.children.find((c) => c instanceof THREE.Group)
       expect(knee).toBeInstanceOf(THREE.Group)
@@ -189,19 +191,25 @@ describe('PlayerAvatar', () => {
     expect(Math.abs(left.x - right.x)).toBeLessThan(0.2)
   })
 
-  it('la pala tiene cara de gota con agujeros por textura (alphaMap), sin perforar', () => {
+  it('la pala tiene cara redonda con grosor (3D) y agujeros por textura (alphaMap), sin perforar', () => {
     const avatar = new PlayerAvatar()
-    // La cara es una geometría de forma plana (no una esfera ni geometría real perforada).
-    expect(avatar.racketFace.geometry).toBeInstanceOf(THREE.ShapeGeometry)
+    // La cara es un disco extruido (con grosor), no una lámina plana ni geometría real perforada.
+    expect(avatar.racketFace.geometry).toBeInstanceOf(THREE.ExtrudeGeometry)
     const mat = avatar.racketFace.material as THREE.MeshStandardMaterial
     // Los agujeros se resuelven con un alphaMap con transparencia.
     expect(mat.alphaMap).toBeInstanceOf(THREE.Texture)
     expect(mat.transparent).toBe(true)
-    // Forma de gota: más ancha (X) que alta a partes iguales no; más alta que ancha
-    // y estrechándose hacia el cuello (min.y ≈ 0 en el vértice inferior).
+
     avatar.racketFace.geometry.computeBoundingBox()
     const bb = avatar.racketFace.geometry.boundingBox!
-    expect(bb.max.y - bb.min.y).toBeGreaterThan(bb.max.x - bb.min.x)
+    const width = bb.max.x - bb.min.x
+    const height = bb.max.y - bb.min.y
+    const depth = bb.max.z - bb.min.z
+    // Redonda: ancho y alto prácticamente iguales.
+    expect(Math.abs(width - height)).toBeLessThan(0.02)
+    // Con grosor real en Z (se nota como 3D), mucho menor que el diámetro.
+    expect(depth).toBeGreaterThan(0)
+    expect(depth).toBeLessThan(width)
   })
 
   it('la cara de la pala lleva el color de la pala', () => {
@@ -259,14 +267,14 @@ describe('PlayerAvatar', () => {
     const conGorra = new PlayerAvatar(0xffffff, { rng: constantRng(0.2) })
     const sinGorra = new PlayerAvatar(0xffffff, { rng: constantRng(0.9) })
     expect(conGorra.hasCap).toBe(true)
-    expect(conGorra.cap).toBeInstanceOf(THREE.Mesh)
+    expect(conGorra.cap).toBeInstanceOf(THREE.Group)
     expect(sinGorra.hasCap).toBe(false)
     expect(sinGorra.cap).toBeNull()
   })
 
   it('respeta la presencia de gorra indicada por opción', () => {
     expect(new PlayerAvatar(0xffffff, { hasCap: true }).cap).toBeInstanceOf(
-      THREE.Mesh,
+      THREE.Group,
     )
     expect(new PlayerAvatar(0xffffff, { hasCap: false }).cap).toBeNull()
   })

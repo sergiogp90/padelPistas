@@ -59,6 +59,17 @@ describe('frameCourt', () => {
         expect(camera.position.length()).toBeGreaterThan(0)
       })
 
+      it('deja la línea de fondo horizontal (paralela al eje X)', () => {
+        // Extremos de una línea de fondo a ras de suelo (z e y constantes,
+        // x de un lado a otro). Si la vista no tiene escorzo lateral, ambos
+        // extremos deben proyectarse a la misma altura (NDC y).
+        const [izq, der] = projectAll(
+          [new THREE.Vector3(-5, 0, -10), new THREE.Vector3(5, 0, -10)],
+          camera,
+        )
+        expect(izq.y).toBeCloseTo(der.y, 6)
+      })
+
       it('reserva la franja izquierda y desplaza la pista a la derecha (LEFT_RESERVE)', () => {
         const ndc = projectAll(worldCorners, camera)
         const centroX =

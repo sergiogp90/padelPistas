@@ -177,7 +177,7 @@ describe('PlayerAvatar', () => {
       expect(avatar.basePosition.toArray()).toEqual([2.5, 0, -8])
     })
 
-    it('oscila dentro de un radio pequeño alrededor de la base (≤ 0,3 m)', () => {
+    it('el vaivén horizontal no supera el radio declarado (idleRadius)', () => {
       const avatar = new PlayerAvatar()
       avatar.position.set(2.5, 0, -8)
       avatar.update(0) // fija la base sin avanzar el tiempo
@@ -190,15 +190,25 @@ describe('PlayerAvatar', () => {
         const dz = avatar.position.z - avatar.basePosition.z
         maxDist = Math.max(maxDist, Math.hypot(dx, dz))
       }
-      expect(maxDist).toBeLessThanOrEqual(0.3)
       expect(maxDist).toBeLessThanOrEqual(avatar.idleRadius + 1e-9)
     })
 
-    it('no altera la altura (se mueve solo en el plano del suelo)', () => {
+    it('rebota en Y (trote) sin hundir los pies por debajo de la base', () => {
       const avatar = new PlayerAvatar()
       avatar.position.set(0, 0, 0)
-      for (let i = 0; i < 20; i++) avatar.update(0.1)
-      expect(avatar.position.y).toBe(0)
+      avatar.update(0) // fija la base (y = 0)
+
+      let maxY = 0
+      let minY = Infinity
+      for (let i = 0; i < 400; i++) {
+        avatar.update(0.02)
+        maxY = Math.max(maxY, avatar.position.y)
+        minY = Math.min(minY, avatar.position.y)
+      }
+      // Sube por encima de la base (hay rebote visible)...
+      expect(maxY).toBeGreaterThan(0.02)
+      // ...pero nunca baja de la base (los pies no atraviesan el suelo).
+      expect(minY).toBeGreaterThanOrEqual(0)
     })
 
     it('es independiente de los FPS: el mismo tiempo total da la misma posición', () => {

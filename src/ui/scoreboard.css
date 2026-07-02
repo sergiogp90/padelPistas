@@ -5,11 +5,22 @@
  * que escale igual en cualquier televisión. La paleta y la tipografía vienen de
  * los tokens base (`src/style.css`). */
 
-.scoreboard {
+/* Contenedor de una celda de la rejilla multipista: cubre el viewport de su
+ * pista (posición y tamaño en % los fija `main.ts`) y sirve de ancestro
+ * posicionado para el marcador. La escala (`--court-scale`) reduce el marcador
+ * en proporción al número de columnas para que quepa en su celda. */
+.court-overlay {
   position: fixed;
-  top: 2.5vh;
-  left: 2.5vw;
   z-index: 10;
+  pointer-events: none;
+}
+
+.scoreboard {
+  position: absolute;
+  top: 2.5%;
+  left: 2.5%;
+  transform: scale(var(--court-scale, 1));
+  transform-origin: top left;
 
   display: inline-grid;
   gap: 0.4vw;

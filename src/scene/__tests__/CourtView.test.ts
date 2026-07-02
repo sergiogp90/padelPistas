@@ -71,6 +71,34 @@ describe('CourtView', () => {
     expect(view.object3D.children).toContain(view.court)
   })
 
+  it('posee su propia escena con la pista y luces', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    expect(view.scene).toBeInstanceOf(THREE.Scene)
+    expect(view.scene.children).toContain(view.object3D)
+    // Escena autocontenida: incluye sus propias luces (ambiental + direccional).
+    expect(view.scene.children.some((c) => c instanceof THREE.Light)).toBe(true)
+  })
+
+  it('posee su propia cámara de perspectiva', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    expect(view.camera).toBeInstanceOf(THREE.PerspectiveCamera)
+  })
+
+  it('reencuadra la cámara al aspecto de su celda con frame()', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    view.frame(16 / 9)
+
+    expect(view.camera.aspect).toBe(16 / 9)
+    expect(Number.isFinite(view.camera.position.length())).toBe(true)
+    expect(view.camera.position.length()).toBeGreaterThan(0)
+  })
+
   it('coloca la pista en el origen con la celda por defecto (sin cambio visible)', () => {
     const { source } = createFakeSource(buildCourt('Pista Central'))
     const view = new CourtView(source)

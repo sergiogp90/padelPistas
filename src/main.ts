@@ -1,46 +1,42 @@
 import './style.css'
-import * as THREE from 'three'
-import { createCamera, frameCourt } from './scene/createCamera'
 import { CourtView } from './scene/CourtView'
-import { MockDataSource } from './data/MockDataSource'
+import { MultiCourtRenderer } from './scene/MultiCourtRenderer'
+import { computeCssCells, gridShape } from './scene/gridLayout'
+import { createMockDataSources } from './data/createMockDataSources'
 
-const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x87ceeb)
+// Número de pistas a mostrar en la rejilla multipista.
+const COURT_COUNT = 4
 
-const camera = createCamera(window.innerWidth / window.innerHeight)
+// Una fuente de datos y una vista por pista. Cada `CourtView` es autocontenida
+// (su escena, su cámara y su marcador); el renderer las dibuja en un único canvas.
+const sources = createMockDataSources(COURT_COUNT)
+const views = sources.map((source) => new CourtView(source))
 
-const renderer = new THREE.WebGLRenderer({ antialias: true })
-renderer.setSize(window.innerWidth, window.innerHeight)
-renderer.setPixelRatio(window.devicePixelRatio)
-document.body.appendChild(renderer.domElement)
+const app = new MultiCourtRenderer()
+document.body.appendChild(app.domElement)
+app.setViews(views)
 
-// Luces globales de la escena, compartidas por todas las pistas.
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
-scene.add(ambientLight)
-
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
-directionalLight.position.set(10, 20, 10)
-scene.add(directionalLight)
-
-// Pista única, montada mediante `CourtView`: encapsula la pista 3D y su marcador
-// overlay (alimentado por un `DataSource`). La UI no conoce el origen de los
-// datos: se suscribe y se re-renderiza sola según avanza el partido simulado.
-// La celda por defecto (origen) reproduce la vista actual, sin cambio visible.
-const dataSource = new MockDataSource()
-const courtView = new CourtView(dataSource)
-scene.add(courtView.object3D)
-document.body.appendChild(courtView.scoreboardEl)
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight
-  camera.updateProjectionMatrix()
-  frameCourt(camera)
-  renderer.setSize(window.innerWidth, window.innerHeight)
+// Marcadores overlay: uno por celda, colocados sobre el viewport de su pista.
+// Cada marcador se envuelve en un contenedor posicionado según la celda (en %,
+// origen arriba-izquierda) y se escala según el número de columnas para que
+// quepa en su celda sin invadir a las vecinas.
+const { cols } = gridShape(COURT_COUNT)
+const cells = computeCssCells(COURT_COUNT)
+views.forEach((view, i) => {
+  const cell = cells[i]
+  const overlay = document.createElement('div')
+  overlay.className = 'court-overlay'
+  overlay.style.left = `${cell.x * 100}%`
+  overlay.style.top = `${cell.y * 100}%`
+  overlay.style.width = `${cell.width * 100}%`
+  overlay.style.height = `${cell.height * 100}%`
+  overlay.style.setProperty('--court-scale', String(1 / cols))
+  overlay.appendChild(view.scoreboardEl)
+  document.body.appendChild(overlay)
 })
 
-function animate() {
-  requestAnimationFrame(animate)
-  renderer.render(scene, camera)
-}
+window.addEventListener('resize', () => {
+  app.resize(window.innerWidth, window.innerHeight)
+})
 
-animate()
+app.start()

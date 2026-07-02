@@ -18,8 +18,10 @@ const FOV = 45
 // Dirección desde la que mira la cámara (de la pista hacia la cámara).
 // - Componente Z: detrás de un fondo (vista a lo largo de la pista).
 // - Componente Y: elevación → ángulo en picado suave, no cenital.
-// - Componente X: pequeño desplazamiento lateral → ligero escorzo / profundidad.
-const VIEW_DIR = new THREE.Vector3(0.12, 0.5, 1).normalize()
+// - Componente X: 0 → la cámara mira la pista de frente por el eje Z, sin
+//   desplazamiento lateral, de modo que la línea de fondo queda horizontal
+//   (paralela al eje X de la pantalla).
+const VIEW_DIR = new THREE.Vector3(0, 0.5, 1).normalize()
 
 // Punto al que mira la cámara: centro de la pista, ligeramente elevado para
 // que la pista no quede pegada al borde inferior del encuadre.
@@ -79,20 +81,32 @@ export function frameCourt(camera: THREE.PerspectiveCamera): void {
   const tanV = Math.tan(THREE.MathUtils.degToRad(FOV) / 2) / FIT_MARGIN
   const tanH = tanV * camera.aspect
 
-  // La pista solo puede usar la franja derecha (1 - LEFT_RESERVE) de la anchura,
-  // así que para el ajuste horizontal el medio-ancho disponible se reduce en esa
-  // misma proporción.
-  const tanHFit = tanH * (1 - LEFT_RESERVE)
-
-  // Para cada esquina, la profundidad mínima a la que cabe en el frustum es
-  //   esquina·VIEW_DIR + max(|x|/tanHFit, |y|/tanV)
-  // (x, y son las coordenadas laterales/verticales de la esquina respecto a la
-  // cámara, independientes de la distancia). Tomamos el máximo sobre todas.
+  // El encuadre final aplica un paneo lateral que centra la pista en la franja
+  // derecha (ver `panOffset` más abajo). Ese paneo es una traslación lateral de
+  // la cámara, así que su efecto en NDC depende de la profundidad de cada
+  // esquina y no puede tratarse como un simple recorte del ancho disponible.
+  //
+  // Modelamos el resultado directamente. Para una esquina con:
+  //   s = esquina·VIEW_DIR   (profundidad a lo largo de la vista)
+  //   a = esquina·right      (coordenada lateral, con signo)
+  //   b = |esquina·up|       (coordenada vertical)
+  // su profundidad a la cámara es (distance - s) y, tras panear, su coordenada
+  // horizontal en NDC vale (a/tanH + LEFT_RESERVE·distance) / (distance - s).
+  // Imponer que quede dentro de [-1, 1] en horizontal y [-1, 1] en vertical da,
+  // para cada esquina, tres cotas inferiores sobre `distance`:
+  //   vertical:    distance ≥ s + b/tanV
+  //   borde dcho.: distance ≥ (a/tanH + s) / (1 - LEFT_RESERVE)
+  //   borde izdo.: distance ≥ (s - a/tanH) / (1 + LEFT_RESERVE)
+  // Tomamos el máximo sobre todas las esquinas y ambos bordes.
   let distance = 0
   for (const corner of courtCorners) {
-    const x = Math.abs(corner.dot(right))
-    const y = Math.abs(corner.dot(up))
-    const needed = corner.dot(VIEW_DIR) + Math.max(x / tanHFit, y / tanV)
+    const s = corner.dot(VIEW_DIR)
+    const a = corner.dot(right)
+    const b = Math.abs(corner.dot(up))
+    const vertical = s + b / tanV
+    const rightEdge = (a / tanH + s) / (1 - LEFT_RESERVE)
+    const leftEdge = (s - a / tanH) / (1 + LEFT_RESERVE)
+    const needed = Math.max(vertical, rightEdge, leftEdge)
     if (needed > distance) distance = needed
   }
 

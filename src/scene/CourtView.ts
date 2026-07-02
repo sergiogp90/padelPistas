@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { PadelCourt } from './PadelCourt'
 import { PlayerAvatar } from './PlayerAvatar'
+import { PadelBall } from './PadelBall'
 import { createCamera, frameCourt } from './createCamera'
 import { mountScoreboard } from '../ui/Scoreboard'
 import { TEAM_PALETTE, type TeamColorPair } from './teamColors'
@@ -145,6 +146,8 @@ export class CourtView {
   readonly court: PadelCourt
   /** Los 4 avatares de jugadores (2 por equipo), ya colocados en la pista. */
   readonly players: PlayerAvatar[]
+  /** Pelota que va y viene entre los jugadores de equipos contrarios. */
+  readonly ball: PadelBall
   /** Índice del escenario de posiciones aplicado (0-3, ver `POSITION_SCENARIOS`). */
   readonly scenario: number
   /** Par de colores de equipo aplicado a esta pista (equipo 0 y equipo 1). */
@@ -171,7 +174,8 @@ export class CourtView {
 
     // 4 jugadores según el escenario elegido, con el color de su equipo.
     // Se añaden al sub-árbol de la pista para que se muevan con la celda.
-    this.players = slotsForScenario(POSITION_SCENARIOS[this.scenario]).map((slot) => {
+    const slots = slotsForScenario(POSITION_SCENARIOS[this.scenario])
+    this.players = slots.map((slot) => {
       const avatar = new PlayerAvatar(this.teamColors[slot.team])
       avatar.position.set(slot.x, 0, slot.z)
       // El avatar mira hacia +Z por defecto; el equipo de la mitad lejana (Z>0)
@@ -180,6 +184,13 @@ export class CourtView {
       this.object3D.add(avatar)
       return avatar
     })
+
+    // Pelota que pelotea sin fin entre jugadores de equipos contrarios. Comparte
+    // el sub-árbol de la pista (mismas coordenadas que los jugadores) y su equipo
+    // por jugador es el del slot correspondiente, en el mismo orden.
+    const teams = slots.map((slot) => slot.team)
+    this.ball = new PadelBall(this.players, teams, { rng })
+    this.object3D.add(this.ball)
 
     // Escena propia de la celda: el fondo de cielo, la pista y sus luces. No se
     // comparte con las demás pistas, de modo que cada celda es independiente.
@@ -212,13 +223,17 @@ export class CourtView {
 
   /**
    * Avanza la animación de la pista un fotograma: aplica a cada jugador su
-   * micro-movimiento en reposo (ver `PlayerAvatar.update`). Ligado al `delta`
-   * de tiempo, por lo que es independiente de los FPS.
+   * micro-movimiento en reposo (ver `PlayerAvatar.update`) y mueve la pelota por
+   * su peloteo (ver `PadelBall.update`). Ligado al `delta` de tiempo, por lo que
+   * es independiente de los FPS.
    *
    * @param delta Segundos transcurridos desde el fotograma anterior.
    */
   update(delta: number): void {
     for (const player of this.players) player.update(delta)
+    // La pelota se actualiza tras los jugadores para leer sus posiciones ya
+    // avanzadas en este fotograma.
+    this.ball.update(delta)
   }
 
   /** Cancela la suscripción del marcador. Llamar al retirar la vista. */

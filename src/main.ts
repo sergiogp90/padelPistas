@@ -20,14 +20,14 @@ app.setViews(views)
 // (columnas × filas) que usa el renderer para los viewports. El navegador
 // reparte las celdas —que se autoubican en el mismo orden en que se pintan las
 // pistas—, así que aquí basta con fijar `--cols`/`--rows` y meter un marcador
-// por celda; la aritmética de la rejilla no se duplica. La escala se reduce
-// según el número de columnas para que cada marcador quepa en su celda.
+// por celda; la aritmética de la rejilla no se duplica. Cada celda es un
+// contenedor de consulta y el marcador se dimensiona con unidades `cqw`
+// (relativas al ancho de la celda), así que encaja solo sin escalado desde JS.
 const { cols, rows } = gridShape(COURT_COUNT)
 const grid = document.createElement('div')
 grid.className = 'courts-grid'
 grid.style.setProperty('--cols', String(cols))
 grid.style.setProperty('--rows', String(rows))
-grid.style.setProperty('--court-scale', String(1 / cols))
 views.forEach((view) => {
   const cell = document.createElement('div')
   cell.className = 'court-cell'

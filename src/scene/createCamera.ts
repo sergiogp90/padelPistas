@@ -31,6 +31,13 @@ const FIT_MARGIN = 1.08
 // Fracción de la anchura reservada a la izquierda para el marcador. La pista se
 // encuadra y se centra solo en la franja derecha restante, de modo que quede
 // alineada a la derecha y no tape (ni la tape) el marcador superior izquierdo.
+//
+// Es una fracción del encuadre, no una medida absoluta, así que aplica igual a
+// nivel de CELDA: `frameCourt` usa el aspecto de la celda (`camera.aspect`, que
+// el renderer fija a `ancho/alto` del viewport de la celda), y el marcador se
+// dimensiona con unidades `cqw` relativas a esa misma celda. Al escalar ambos en
+// proporción a la celda, la misma reserva sirve para una pista a pantalla
+// completa o para N pistas en rejilla.
 const LEFT_RESERVE = 0.3
 
 // Esquinas de la caja envolvente de la pista, relativas a TARGET.
@@ -55,7 +62,8 @@ export function createCamera(aspect: number): THREE.PerspectiveCamera {
 /**
  * Recoloca la cámara para que la pista completa quepa en el encuadre con el
  * aspecto actual de `camera`. Llamar tras cambiar `camera.aspect` (p. ej. al
- * redimensionar la ventana).
+ * redimensionar la ventana o al maquetar la rejilla: `camera.aspect` es el de la
+ * CELDA donde se dibuja la pista, no el de la ventana; ver `CourtView.frame`).
  *
  * Mantiene la dirección y el objetivo de la cámara fijos y solo ajusta la
  * distancia, de modo que el ángulo de retransmisión se conserva en cualquier

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { CourtView } from '../CourtView'
+import { CourtView, TEAM_COLORS } from '../CourtView'
 import { PadelCourt } from '../PadelCourt'
+import { PlayerAvatar } from '../PlayerAvatar'
 import type { DataSource } from '../../data/DataSource'
 import type { Court } from '../../types'
 
@@ -111,6 +112,71 @@ describe('CourtView', () => {
     const view = new CourtView(source, { x: 30, z: -12 })
 
     expect(view.object3D.position.toArray()).toEqual([30, 0, -12])
+  })
+
+  it('coloca 4 jugadores (2 por equipo) dentro del sub-árbol 3D', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    expect(view.players).toHaveLength(4)
+    for (const player of view.players) {
+      expect(player).toBeInstanceOf(PlayerAvatar)
+      expect(view.object3D.children).toContain(player)
+    }
+  })
+
+  it('reparte los jugadores a cada lado de la red (Z<0 y Z>0)', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    const nearSide = view.players.filter((p) => p.position.z < 0)
+    const farSide = view.players.filter((p) => p.position.z > 0)
+    expect(nearSide).toHaveLength(2)
+    expect(farSide).toHaveLength(2)
+  })
+
+  it('separa en X a los dos jugadores de cada mitad', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    for (const half of [(p: PlayerAvatar) => p.position.z < 0, (p: PlayerAvatar) => p.position.z > 0]) {
+      const [a, b] = view.players.filter(half)
+      expect(a.position.x).not.toBe(b.position.x)
+    }
+  })
+
+  it('mantiene a los jugadores dentro de los límites de la pista (±5 en X, ±10 en Z)', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    for (const player of view.players) {
+      expect(Math.abs(player.position.x)).toBeLessThan(5)
+      expect(Math.abs(player.position.z)).toBeLessThan(10)
+    }
+  })
+
+  it('aplica el color de equipo al cuerpo de cada avatar', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    for (const player of view.players) {
+      const color = (player.body.material as THREE.MeshStandardMaterial).color.getHex()
+      const team0 = new THREE.Color(TEAM_COLORS[0]).getHex()
+      const team1 = new THREE.Color(TEAM_COLORS[1]).getHex()
+      const nearSide = player.position.z < 0
+      expect(color).toBe(nearSide ? team0 : team1)
+    }
+  })
+
+  it('orienta al equipo lejano (Z>0) mirando hacia la red', () => {
+    const { source } = createFakeSource(buildCourt('Pista Central'))
+    const view = new CourtView(source)
+
+    for (const player of view.players) {
+      // El avatar mira a +Z; el equipo de Z>0 se gira 180° para encarar la red.
+      const expected = player.position.z > 0 ? Math.PI : 0
+      expect(player.rotation.y).toBeCloseTo(expected, 5)
+    }
   })
 
   it('monta el marcador con el estado inicial de la fuente', () => {

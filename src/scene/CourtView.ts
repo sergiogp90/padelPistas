@@ -1,8 +1,45 @@
 import * as THREE from 'three'
 import { PadelCourt } from './PadelCourt'
+import { PlayerAvatar } from './PlayerAvatar'
 import { createCamera, frameCourt } from './createCamera'
 import { mountScoreboard } from '../ui/Scoreboard'
 import type { DataSource } from '../data/DataSource'
+
+/**
+ * Color de cada equipo, indexado por equipo (0 y 1). Coherente con el orden que
+ * usa el marcador (`teams[0]` vs `teams[1]`): el primer equipo es azul y el
+ * segundo, naranja. Se exporta para poder reutilizarlo en otras vistas si el
+ * marcador quiere colorear sus filas igual que los avatares de la pista.
+ */
+export const TEAM_COLORS: readonly [THREE.ColorRepresentation, THREE.ColorRepresentation] =
+  [0x2f6bff, 0xff6a2f]
+
+/**
+ * Posición base de un jugador dentro de la pista (metros, relativas al centro).
+ * Sistema de coordenadas de la pista (ver `PadelCourt`): largo 20 m en Z (±10),
+ * ancho 10 m en X (±5) y red en Z=0.
+ */
+interface PlayerSlot {
+  /** Desplazamiento lateral respecto al centro (m). */
+  x: number
+  /** Profundidad respecto a la red (m); el signo indica la mitad de la pista. */
+  z: number
+  /** Equipo al que pertenece (índice en `TEAM_COLORS` y en `match.teams`). */
+  team: 0 | 1
+}
+
+/**
+ * Colocación representativa de los 4 jugadores: 2 por equipo, repartidos a cada
+ * lado de la red (equipo 0 en Z<0, equipo 1 en Z>0) y separados en X para cubrir
+ * las dos mitades laterales de su campo. No pretende reproducir una táctica
+ * concreta, solo poblar la pista de forma verosímil.
+ */
+const PLAYER_SLOTS: readonly PlayerSlot[] = [
+  { x: -2.5, z: -5, team: 0 },
+  { x: 2.5, z: -5, team: 0 },
+  { x: -2.5, z: 5, team: 1 },
+  { x: 2.5, z: 5, team: 1 },
+]
 
 // Vista autocontenida de UNA pista: su escena 3D (pista + luces), su cámara y su
 // marcador overlay.
@@ -42,6 +79,8 @@ export class CourtView {
   readonly object3D: THREE.Group
   /** Pista 3D contenida (útil para inspección/tests). */
   readonly court: PadelCourt
+  /** Los 4 avatares de jugadores (2 por equipo), ya colocados en la pista. */
+  readonly players: PlayerAvatar[]
   /** Overlay HTML del marcador. Insértalo en el DOM (p. ej. `document.body`). */
   readonly scoreboardEl: HTMLElement
 
@@ -53,6 +92,18 @@ export class CourtView {
     this.object3D = new THREE.Group()
     this.object3D.add(this.court)
     this.object3D.position.set(cell.x ?? 0, 0, cell.z ?? 0)
+
+    // 4 jugadores en posiciones representativas, con el color de su equipo.
+    // Se añaden al sub-árbol de la pista para que se muevan con la celda.
+    this.players = PLAYER_SLOTS.map((slot) => {
+      const avatar = new PlayerAvatar(TEAM_COLORS[slot.team])
+      avatar.position.set(slot.x, 0, slot.z)
+      // El avatar mira hacia +Z por defecto; el equipo de la mitad lejana (Z>0)
+      // gira 180° para encarar la red y quedar frente a sus rivales.
+      if (slot.z > 0) avatar.rotation.y = Math.PI
+      this.object3D.add(avatar)
+      return avatar
+    })
 
     // Escena propia de la celda: el fondo de cielo, la pista y sus luces. No se
     // comparte con las demás pistas, de modo que cada celda es independiente.

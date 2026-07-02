@@ -5,14 +5,31 @@
  * que escale igual en cualquier televisión. La paleta y la tipografía vienen de
  * los tokens base (`src/style.css`). */
 
-/* Contenedor de una celda de la rejilla multipista: cubre el viewport de su
- * pista (posición y tamaño en % los fija `main.ts`) y sirve de ancestro
- * posicionado para el marcador. La escala (`--court-scale`) reduce el marcador
- * en proporción al número de columnas para que quepa en su celda. */
-.court-overlay {
+/* Rejilla de overlays de marcador, superpuesta al canvas 3D a pantalla
+ * completa. Es una rejilla CSS que reparte las celdas igual que el renderer
+ * (número de columnas y filas en `--cols`/`--rows`, que fija `main.ts`), de modo
+ * que cada marcador queda alineado con el viewport de su pista sin duplicar la
+ * aritmética de la rejilla en JS. Las celdas se autoubican de izquierda a
+ * derecha y de arriba abajo, en el mismo orden en que el renderer pinta los
+ * viewports. */
+.courts-grid {
   position: fixed;
+  inset: 0;
   z-index: 10;
+
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 1), 1fr);
+  grid-template-rows: repeat(var(--rows, 1), 1fr);
+
+  /* No interceptar el ratón sobre el canvas 3D. */
   pointer-events: none;
+}
+
+/* Una celda de la rejilla: ancestro posicionado del marcador de su pista. La
+ * escala (`--court-scale`) reduce el marcador en proporción al número de
+ * columnas para que quepa en su celda sin invadir a las vecinas. */
+.court-cell {
+  position: relative;
 }
 
 .scoreboard {

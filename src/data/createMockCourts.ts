@@ -1,4 +1,4 @@
-import type { Court, Point } from '../types';
+import type { Court, Player, PlayerGender, Point } from '../types';
 
 // Semilla de N pistas mock con datos diferenciados, pensada para la rejilla del
 // hito M3. Cada pista tiene id y nombre únicos, parejas distintas y un marcador
@@ -18,7 +18,11 @@ const COURT_NAMES = [
   'Pista Río',
 ];
 
-/** Cantera de jugadores; se reparten en grupos de 4 por pista. */
+/**
+ * Cantera de jugadores; se reparten en grupos de 4 por pista. Cada entrada lleva
+ * su género, coherente con el nombre, para que el avatar pueda derivarse del dato
+ * (y no del azar). Las dos listas van en paralelo (mismo índice → mismo jugador).
+ */
 const PLAYER_NAMES = [
   'Carlos Ruiz',
   'Miguel Sánchez',
@@ -44,6 +48,34 @@ const PLAYER_NAMES = [
   'Irene Pardo',
   'Álvaro Nieto',
   'Rocío Vega',
+];
+
+/** Género de cada jugador de la cantera (mismo índice que `PLAYER_NAMES`). */
+const PLAYER_GENDERS: PlayerGender[] = [
+  'male', // Carlos Ruiz
+  'male', // Miguel Sánchez
+  'male', // Pablo García
+  'male', // Javier López
+  'female', // Lucía Fernández
+  'female', // Marta Gómez
+  'male', // Andrés Torres
+  'female', // Elena Navarro
+  'male', // Sergio Díaz
+  'female', // Nuria Castro
+  'male', // Iván Moreno
+  'female', // Paula Romero
+  'male', // Hugo Vidal
+  'female', // Sara Ortega
+  'male', // Diego Blanco
+  'female', // Ana Serrano
+  'male', // Rubén Prieto
+  'female', // Clara Molina
+  'male', // Adrián Gil
+  'female', // Laura Herrera
+  'male', // Marcos Cano
+  'female', // Irene Pardo
+  'male', // Álvaro Nieto
+  'female', // Rocío Vega
 ];
 
 /** Marcadores de partida distintos, para que cada pista arranque en otro momento. */
@@ -79,11 +111,19 @@ function courtName(index: number): string {
   return COURT_NAMES[index] ?? `Pista ${index + 1}`;
 }
 
-/** Selecciona el jugador `i` de la cantera, cíclicamente y con sufijo si repite. */
-function playerName(i: number): string {
-  const base = PLAYER_NAMES[i % PLAYER_NAMES.length];
+/**
+ * Selecciona el jugador `i` de la cantera, cíclicamente y con sufijo en el nombre
+ * si repite. El género acompaña siempre al jugador base, de modo que un mismo
+ * jugador (aun con sufijo) conserva su género en cualquier ciclo.
+ */
+function player(i: number): Player {
+  const slot = i % PLAYER_NAMES.length;
   const cycle = Math.floor(i / PLAYER_NAMES.length);
-  return cycle === 0 ? base : `${base} ${cycle + 1}`;
+  const base = PLAYER_NAMES[slot];
+  return {
+    name: cycle === 0 ? base : `${base} ${cycle + 1}`,
+    gender: PLAYER_GENDERS[slot],
+  };
 }
 
 /**
@@ -109,16 +149,10 @@ export function createMockCourts(n: number): Court[] {
       match: {
         teams: [
           {
-            players: [
-              { name: playerName(base) },
-              { name: playerName(base + 1) },
-            ],
+            players: [player(base), player(base + 1)],
           },
           {
-            players: [
-              { name: playerName(base + 2) },
-              { name: playerName(base + 3) },
-            ],
+            players: [player(base + 2), player(base + 3)],
           },
         ],
         score: {

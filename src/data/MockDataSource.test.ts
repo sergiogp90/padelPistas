@@ -10,8 +10,8 @@ function seedCourt(): Court {
     name: 'Pista Test',
     match: {
       teams: [
-        { players: [{ name: 'A1' }, { name: 'A2' }] },
-        { players: [{ name: 'B1' }, { name: 'B2' }] },
+        { players: [{ name: 'A1', gender: 'male' }, { name: 'A2', gender: 'female' }] },
+        { players: [{ name: 'B1', gender: 'male' }, { name: 'B2', gender: 'female' }] },
       ],
       score: { currentPoint: [0, 0], games: [[0, 0]], sets: [0, 0] },
     },

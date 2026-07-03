@@ -21,6 +21,20 @@ import type { CourtView } from './CourtView'
 // pausa cuando la página no está visible (`visibilityPause`), de modo que una TV
 // 4K o varias pistas no gasten GPU/energía de más ni dibujen lo que nadie ve.
 
+/**
+ * Sonda de rendimiento opcional: se avisa al inicio (`begin`) y al final (`end`)
+ * de cada fotograma PINTADO para medir FPS y tiempo por fotograma. La cumple
+ * `PerfMonitor` (ver `perfMonitor`); el renderer no depende de `stats.js`, solo de
+ * esta interfaz mínima, para no arrastrar el panel de desarrollo ni complicar los
+ * tests.
+ */
+export interface RenderMonitor {
+  /** Marca el inicio de la medición del fotograma. */
+  begin(): void
+  /** Cierra la medición del fotograma. */
+  end(): void
+}
+
 /** Opciones del renderer, sobre todo avisos de pérdida/restauración de contexto. */
 export interface MultiCourtRendererOptions {
   /** Se invoca al perderse el contexto WebGL (bucle ya detenido): avisa. */
@@ -35,6 +49,12 @@ export interface MultiCourtRendererOptions {
   maxPixelRatio?: number
   /** Documento cuya visibilidad pausa/reanuda el bucle (inyectable en tests). */
   doc?: Document
+  /**
+   * Sonda de rendimiento opcional (FPS/ms). Se envuelve cada fotograma pintado con
+   * `begin()`/`end()`. Por defecto no hay sonda (coste nulo); en desarrollo se pasa
+   * el monitor de `installPerfMonitor` activado por el flag `?stats`.
+   */
+  monitor?: RenderMonitor
 }
 
 /**
@@ -66,6 +86,8 @@ export class MultiCourtRenderer {
   private readonly visibility: VisibilityPause
   private readonly onContextLost?: () => void
   private readonly onContextRestored?: () => void
+  // Sonda de rendimiento opcional: envuelve cada fotograma pintado (ver `RenderMonitor`).
+  private readonly monitor?: RenderMonitor
   private readonly maxPixelRatio: number
   // Limitador de FPS: acota la tasa de pintado al objetivo con paso de tiempo
   // independiente de la tasa real (ver `FrameLimiter`).
@@ -77,6 +99,7 @@ export class MultiCourtRenderer {
   constructor(options: MultiCourtRendererOptions = {}) {
     this.onContextLost = options.onContextLost
     this.onContextRestored = options.onContextRestored
+    this.monitor = options.monitor
     this.maxPixelRatio = options.maxPixelRatio ?? MAX_PIXEL_RATIO
     this.limiter = new FrameLimiter(options.targetFps ?? TARGET_FPS)
 
@@ -223,8 +246,13 @@ export class MultiCourtRenderer {
       // el coste al objetivo sin alterar la velocidad de la animación.
       const step = this.limiter.tick(this.clock.getDelta())
       if (step === null) return
+      // Envuelve solo el fotograma que SÍ se pinta: así el panel mide los FPS
+      // efectivos (con el cap, ~TARGET_FPS) y el tiempo real de actualizar+dibujar,
+      // sin contar los disparos de `rAF` que el limitador descarta.
+      this.monitor?.begin()
       this.update(step)
       this.render()
+      this.monitor?.end()
       this.frameCount++
     }
     loop()

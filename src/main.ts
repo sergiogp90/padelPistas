@@ -2,6 +2,7 @@ import './style.css'
 import { CourtView } from './scene/CourtView'
 import { assignTeamColors } from './scene/teamColors'
 import { MultiCourtRenderer } from './scene/MultiCourtRenderer'
+import { installPerfMonitor } from './scene/perfMonitor'
 import { gridShape } from './scene/gridLayout'
 import { createMockDataSources } from './data/createMockDataSources'
 import { startKioskMode } from './kiosk'
@@ -32,6 +33,11 @@ contextNotice.hidden = true
 contextNotice.textContent = 'Recuperando la vista 3D…'
 document.body.appendChild(contextNotice)
 
+// Monitor de rendimiento (FPS/ms) SOLO para desarrollo: se activa con `?stats` en
+// la URL y se inserta en el DOM únicamente entonces. Sin el flag es inerte (no hay
+// panel ni coste) y en el modo TV/kiosko normal no aparece por defecto.
+const perfMonitor = installPerfMonitor()
+
 const app = new MultiCourtRenderer({
   onContextLost: () => {
     contextNotice.hidden = false
@@ -39,6 +45,7 @@ const app = new MultiCourtRenderer({
   onContextRestored: () => {
     contextNotice.hidden = true
   },
+  monitor: perfMonitor,
 })
 document.body.appendChild(app.domElement)
 

@@ -15,6 +15,7 @@
     "@types/three": "^0.184.1",
     "@vitest/coverage-v8": "^3.2.6",
     "jsdom": "^25.0.1",
+    "stats.js": "^0.17.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
     "vitest": "^3.2.6"

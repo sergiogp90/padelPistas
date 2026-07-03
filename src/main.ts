@@ -5,6 +5,7 @@ import { MultiCourtRenderer } from './scene/MultiCourtRenderer'
 import { gridShape } from './scene/gridLayout'
 import { createMockDataSources } from './data/createMockDataSources'
 import { startKioskMode } from './kiosk'
+import { createViewRotation, type RotationView } from './kiosk/viewRotation'
 
 // Número de pistas a mostrar en la rejilla multipista.
 const COURT_COUNT = 4
@@ -21,7 +22,6 @@ const views = sources.map(
 
 const app = new MultiCourtRenderer()
 document.body.appendChild(app.domElement)
-app.setViews(views)
 
 // Marcadores overlay: una rejilla CSS a pantalla completa con la misma forma
 // (columnas × filas) que usa el renderer para los viewports. El navegador
@@ -30,18 +30,40 @@ app.setViews(views)
 // por celda; la aritmética de la rejilla no se duplica. Cada celda es un
 // contenedor de consulta y el marcador se dimensiona con unidades `cqw`
 // (relativas al ancho de la celda), así que encaja solo sin escalado desde JS.
-const { cols, rows } = gridShape(COURT_COUNT)
 const grid = document.createElement('div')
 grid.className = 'courts-grid'
-grid.style.setProperty('--cols', String(cols))
-grid.style.setProperty('--rows', String(rows))
-views.forEach((view) => {
-  const cell = document.createElement('div')
-  cell.className = 'court-cell'
-  cell.appendChild(view.scoreboardEl)
-  grid.appendChild(cell)
-})
 document.body.appendChild(grid)
+
+/**
+ * Pinta el estado de rotación actual: la vista global muestra las N pistas y la
+ * individual una sola a pantalla completa. En ambos casos se reutiliza la misma
+ * maquinaria —`setViews` reparte el canvas con `gridLayout` (para la individual,
+ * una rejilla de 1 celda = viewport a pantalla completa) y el overlay CSS se
+ * dibuja con la misma forma— en lugar de duplicar lógica de layout. Con 1 celda
+ * `1cqw == 1vw`, así que el marcador de la pista destacada sale ampliado solo.
+ *
+ * El overlay se reconstruye moviendo los `scoreboardEl` (que son de cada
+ * `CourtView` y persisten), así que cambiar de vista no crea ni tira marcadores:
+ * transición limpia y sin fugas. Las pistas ocultas siguen recibiendo datos (su
+ * marcador está al día al volver a la global); solo se congela su animación 3D.
+ */
+function renderView(view: RotationView): void {
+  const active = view.kind === 'global' ? views : [views[view.index]]
+
+  app.setViews(active)
+
+  const { cols, rows } = gridShape(active.length)
+  grid.style.setProperty('--cols', String(cols))
+  grid.style.setProperty('--rows', String(rows))
+  grid.replaceChildren(
+    ...active.map((v) => {
+      const cell = document.createElement('div')
+      cell.className = 'court-cell'
+      cell.appendChild(v.scoreboardEl)
+      return cell
+    }),
+  )
+}
 
 window.addEventListener('resize', () => {
   app.resize(window.innerWidth, window.innerHeight)
@@ -53,3 +75,9 @@ app.start()
 // la TV entre en reposo. Se activa siempre; cada pieza degrada con elegancia si
 // su API no está disponible en el navegador.
 startKioskMode()
+
+// Rotación automática de vistas para la TV: global → cada pista a pantalla
+// completa → global, cambiando cada 30 s (ver `ROTATION_INTERVAL_MS`). Emite ya
+// la vista inicial (global), por lo que dibuja la rejilla de arranque, y se pausa
+// sola cuando la página deja de estar visible.
+createViewRotation({ courtCount: COURT_COUNT, onChange: renderView })

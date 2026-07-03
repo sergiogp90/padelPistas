@@ -1,0 +1,27 @@
+/* Estilos del modo kiosko: presentación desatendida en la pantalla de un club.
+ *
+ * Se activan al añadir la clase `kiosk-active` al <body> (ver startKioskMode),
+ * de modo que no afectan al desarrollo ni a los tests salvo que el kiosko esté
+ * en marcha. El `overflow: hidden` del layout a pantalla completa vive en
+ * `style.css`; aquí se cubren selección, scroll/zoom táctil y el cursor. */
+
+body.kiosk-active {
+  /* Sin selección de texto ni resaltado accidental con arrastre. */
+  user-select: none;
+  -webkit-user-select: none;
+
+  /* Sin scroll ni zoom táctil, ni "rebote" al llegar al borde. */
+  touch-action: none;
+  overscroll-behavior: none;
+
+  /* Sin destello azul al tocar en pantallas táctiles. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Cursor oculto tras la inactividad (la clase la alterna createCursorAutoHide).
+ * Se aplica también a los descendientes para que ningún elemento reponga su
+ * propio cursor. */
+body.kiosk-cursor-hidden,
+body.kiosk-cursor-hidden * {
+  cursor: none !important;
+}

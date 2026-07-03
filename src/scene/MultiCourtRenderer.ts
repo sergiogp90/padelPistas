@@ -31,6 +31,13 @@ export class MultiCourtRenderer {
     this.renderer.setPixelRatio(window.devicePixelRatio)
     // Necesario para que cada celda limpie y pinte solo dentro de su viewport.
     this.renderer.setScissorTest(true)
+    // Flujo de color y tono para un aspecto más natural en la TV: salida en sRGB
+    // y `tone mapping` ACESFilmic, que comprime altas luces y suaviza el color
+    // (evita el aspecto plano/quemado del render lineal sin mapeo). La exposición
+    // se sube ligeramente para compensar la compresión de ACES.
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 1.1
     this.resize(window.innerWidth, window.innerHeight)
   }
 

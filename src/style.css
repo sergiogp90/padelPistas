@@ -90,3 +90,29 @@ canvas {
 .context-notice[hidden] {
   display: none;
 }
+
+/* Overlay de error de la red de seguridad (watchdog + captura global). Discreto
+ * y no invasivo: una banda pequeña en la esquina inferior IZQUIERDA (para no
+ * chocar con el aviso de contexto WebGL, que va a la derecha), con un acento
+ * tenue. Nace oculto y se muestra unos segundos ante un incidente; luego se
+ * retira solo (ver `ERROR_OVERLAY_TIMEOUT_MS`), de modo que nunca queda texto
+ * fijo sobre la imagen de la TV. */
+.error-notice {
+  position: fixed;
+  bottom: 1.5vw;
+  left: 1.5vw;
+  z-index: 10;
+
+  padding: 0.6em 1em;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 0.5em;
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+
+  font-size: 0.9em;
+}
+
+.error-notice[hidden] {
+  display: none;
+}

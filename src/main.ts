@@ -4,6 +4,7 @@ import { assignTeamColors } from './scene/teamColors'
 import { MultiCourtRenderer } from './scene/MultiCourtRenderer'
 import { gridShape } from './scene/gridLayout'
 import { createMockDataSources } from './data/createMockDataSources'
+import { startKioskMode } from './kiosk'
 
 // Número de pistas a mostrar en la rejilla multipista.
 const COURT_COUNT = 4
@@ -47,3 +48,8 @@ window.addEventListener('resize', () => {
 })
 
 app.start()
+
+// Modo kiosko: pantalla completa, cursor oculto, sin scroll/selección y sin que
+// la TV entre en reposo. Se activa siempre; cada pieza degrada con elegancia si
+// su API no está disponible en el navegador.
+startKioskMode()

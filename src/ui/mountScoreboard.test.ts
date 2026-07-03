@@ -66,6 +66,25 @@ describe('mountScoreboard', () => {
     expect(el.querySelectorAll('.scoreboard').length).toBe(1);
   });
 
+  it('no resalta nada en el primer render', () => {
+    const { source } = createFakeSource(buildCourt(15));
+    const { el } = mountScoreboard(source);
+
+    expect(el.querySelectorAll('.scoreboard__value--changed')).toHaveLength(0);
+  });
+
+  it('resalta el punto que cambia entre actualizaciones', () => {
+    const { source, emit } = createFakeSource(buildCourt(0));
+    const { el } = mountScoreboard(source);
+
+    emit(buildCourt(40));
+
+    const changed = el.querySelector(
+      '.scoreboard__row:not(.scoreboard__row--header) .scoreboard__point.scoreboard__value--changed',
+    );
+    expect(changed?.textContent).toBe('40');
+  });
+
   it('deja de re-renderizarse tras llamar a stop()', () => {
     const { source, emit } = createFakeSource(buildCourt(0));
     const { el, stop } = mountScoreboard(source);

@@ -27,6 +27,21 @@ export function isMatchOver(score: Score): boolean {
   return score.sets[0] >= SETS_TO_WIN_MATCH || score.sets[1] >= SETS_TO_WIN_MATCH;
 }
 
+/**
+ * Equipo al saque, derivado del propio marcador: en pádel (como en tenis) el
+ * saque alterna en cada juego, así que el equipo que saca lo determina la
+ * paridad del número total de juegos ya disputados. Asumimos que el equipo 0
+ * sirvió el primer juego del partido.
+ *
+ * Al derivarlo del marcador no hace falta almacenarlo en el modelo y el
+ * indicador se mantiene siempre coherente con el resultado (cambia solo cuando
+ * se cierra un juego). No modela el tie-break, suficiente para el overlay.
+ */
+export function servingTeam(score: Score): TeamIndex {
+  const gamesPlayed = score.games.reduce((total, [a, b]) => total + a + b, 0);
+  return (gamesPlayed % 2) as TeamIndex;
+}
+
 /** ¿Se gana el set con estos juegos? 6 con +2 de margen, o 7 (tras 6-6). */
 function isSetWon(winnerGames: number, loserGames: number): boolean {
   return (winnerGames >= 6 && winnerGames - loserGames >= 2) || winnerGames === 7;

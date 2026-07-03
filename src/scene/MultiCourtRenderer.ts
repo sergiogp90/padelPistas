@@ -37,6 +37,10 @@ export class MultiCourtRenderer {
   private views: CourtView[] = []
   private viewports: Rect[] = []
   private frameHandle = 0
+  // Contador de fotogramas pintados. Solo crece tras un `render()` con éxito, de
+  // modo que si el bucle se detiene o una excepción impide pintar, se estanca y
+  // el watchdog lo detecta (ver `renderWatchdog`).
+  private frameCount = 0
   // Evita bucles `requestAnimationFrame` duplicados: `start()` es idempotente y
   // solo hay un bucle vivo aunque se reanude tras recuperar el contexto.
   private running = false
@@ -150,9 +154,13 @@ export class MultiCourtRenderer {
     this.running = true
     this.clock.start()
     const loop = (): void => {
+      // Reprograma el siguiente frame ANTES de dibujar para que una excepción al
+      // actualizar/pintar no rompa la cadena de `rAF`; el fotograma no llega a
+      // contarse, así que el watchdog detecta el estancamiento y reanima el bucle.
       this.frameHandle = requestAnimationFrame(loop)
       this.update(this.clock.getDelta())
       this.render()
+      this.frameCount++
     }
     loop()
   }
@@ -161,6 +169,25 @@ export class MultiCourtRenderer {
   stop(): void {
     this.running = false
     cancelAnimationFrame(this.frameHandle)
+  }
+
+  /**
+   * Reinicia el bucle de render: lo detiene y lo vuelve a arrancar. A diferencia
+   * de `start()` (idempotente y sin efecto si cree estar en marcha), fuerza un
+   * bucle nuevo aunque el anterior siguiera marcado como activo pero atascado.
+   * Es la primera medida de recuperación del watchdog.
+   */
+  restart(): void {
+    this.stop()
+    this.start()
+  }
+
+  /**
+   * Nº de fotogramas pintados desde la creación del renderer. Lo consulta el
+   * watchdog para comprobar que el bucle sigue vivo (ver `renderWatchdog`).
+   */
+  get frames(): number {
+    return this.frameCount
   }
 
   /** Detiene el bucle, retira los listeners de contexto y libera el renderer. */

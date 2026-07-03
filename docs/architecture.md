@@ -27,6 +27,10 @@ src/
               wakeLock        impide que la pantalla entre en reposo
               fullscreen      entra a pantalla completa con el primer gesto
               index           startKioskMode() orquesta las piezas anteriores
+  resilience/ Red de seguridad para el funcionamiento desatendido:
+              globalErrorHandlers  captura window.onerror y unhandledrejection
+              renderWatchdog       reanima el bucle si deja de pintar; recarga tras N fallos
+              config               umbrales centralizados (timeouts, reintentos)
   main.ts   Punto de entrada que ensambla todo
 ```
 
@@ -96,6 +100,25 @@ para no disparar el recuento de triángulos con decenas de avatares en pantalla.
 *Por qué:* es un alcance realista para un proyecto personal y rinde bien en TV.
 El presupuesto se vigila con un test (≤ ~4.000 triángulos por avatar) para
 mantener 60 FPS con la rejilla multipista.
+
+### 6. Red de seguridad para el funcionamiento desatendido (`resilience/`)
+La app está pensada para estar **días encendida** sin nadie delante, así que se
+protege en varias capas apiladas, de la más suave a la más dura:
+
+1. **Recuperación de contexto WebGL** (`contextRecovery`): reanuda el bucle si el
+   navegador pierde y restaura el contexto GL.
+2. **Captura global de errores** (`globalErrorHandlers`): registra excepciones no
+   controladas y promesas rechazadas sin romper la app.
+3. **Watchdog del bucle** (`renderWatchdog`): vigila un contador de fotogramas y,
+   si deja de avanzar, **reinicia el bucle**; tras varios intentos infructuosos,
+   **recarga la página** como último recurso.
+
+Los umbrales (timeout del watchdog, nº de reintentos, ventana de tiempo) viven en
+un único `resilience/config.ts`.
+
+*Por qué:* una excepción no capturada o un cuelgue silencioso dejarían la TV con
+una imagen congelada sin que nadie lo note. Cada capa se prueba aislada
+inyectando sus dependencias (reloj, documento, recarga), igual que el modo kiosko.
 
 ---
 

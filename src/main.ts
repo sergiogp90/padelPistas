@@ -6,6 +6,9 @@ import { gridShape } from './scene/gridLayout'
 import { createMockDataSources } from './data/createMockDataSources'
 import { startKioskMode } from './kiosk'
 import { createViewRotation, type RotationView } from './kiosk/viewRotation'
+import { installGlobalErrorHandlers } from './resilience/globalErrorHandlers'
+import { createRenderWatchdog } from './resilience/renderWatchdog'
+import { ERROR_OVERLAY_TIMEOUT_MS } from './resilience/config'
 
 // Número de pistas a mostrar en la rejilla multipista.
 const COURT_COUNT = 4
@@ -86,6 +89,50 @@ window.addEventListener('resize', () => {
 })
 
 app.start()
+
+// Red de seguridad para el funcionamiento desatendido (ver `src/resilience`).
+//
+// Overlay de error discreto: una banda en la esquina inferior izquierda que se
+// muestra unos segundos ante un incidente y se retira sola, para no dejar texto
+// fijo sobre la imagen de la TV. Es no invasivo y opcional (solo aparece si algo
+// falla).
+const errorNotice = document.createElement('div')
+errorNotice.className = 'error-notice'
+errorNotice.hidden = true
+document.body.appendChild(errorNotice)
+
+let errorNoticeTimer: ReturnType<typeof setTimeout> | undefined
+function flashErrorNotice(message: string): void {
+  errorNotice.textContent = message
+  errorNotice.hidden = false
+  clearTimeout(errorNoticeTimer)
+  errorNoticeTimer = setTimeout(() => {
+    errorNotice.hidden = true
+  }, ERROR_OVERLAY_TIMEOUT_MS)
+}
+
+// Captura global de errores: registra excepciones no controladas y promesas
+// rechazadas sin `catch` sin romper la app, y las asoma en el overlay.
+installGlobalErrorHandlers({
+  onError: () => flashErrorNotice('Se ha registrado un error; la vista sigue activa.'),
+})
+
+// Watchdog del bucle: si dejan de pintarse fotogramas, reinicia el bucle y, tras
+// varios intentos infructuosos, recarga la página. Así una excepción dentro del
+// bucle no deja la pantalla congelada.
+createRenderWatchdog({
+  getFrameCount: () => app.frames,
+  restart: () => app.restart(),
+  onStall: (stall) =>
+    flashErrorNotice(
+      stall.reloading
+        ? 'Recuperando la vista (recargando)…'
+        : 'Reanudando la vista 3D…',
+    ),
+  onRecover: () => {
+    errorNotice.hidden = true
+  },
+})
 
 // Modo kiosko: pantalla completa, cursor oculto, sin scroll/selección y sin que
 // la TV entre en reposo. Se activa siempre; cada pieza degrada con elegancia si

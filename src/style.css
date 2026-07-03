@@ -67,3 +67,26 @@ canvas {
   position: fixed;
   inset: 0;
 }
+
+/* Aviso discreto de recuperación del contexto WebGL: una banda pequeña en la
+ * esquina inferior, sobre el canvas, que no tapa el contenido. Se muestra solo
+ * mientras el contexto está perdido (el atributo `hidden` la oculta el resto
+ * del tiempo). */
+.context-notice {
+  position: fixed;
+  bottom: 1.5vw;
+  right: 1.5vw;
+  z-index: 10;
+
+  padding: 0.6em 1em;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5em;
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+
+  font-size: 0.9em;
+}
+
+.context-notice[hidden] {
+  display: none;
+}

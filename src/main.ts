@@ -20,7 +20,23 @@ const views = sources.map(
   (source, i) => new CourtView(source, {}, { teamColors: teamColors[i] }),
 )
 
-const app = new MultiCourtRenderer()
+// Aviso discreto mientras se recupera el contexto WebGL (ver `contextRecovery`).
+// Nace oculto; el renderer lo muestra al perder el contexto y lo retira al
+// reanudar. No bloquea la pantalla: es una banda pequeña en una esquina.
+const contextNotice = document.createElement('div')
+contextNotice.className = 'context-notice'
+contextNotice.hidden = true
+contextNotice.textContent = 'Recuperando la vista 3D…'
+document.body.appendChild(contextNotice)
+
+const app = new MultiCourtRenderer({
+  onContextLost: () => {
+    contextNotice.hidden = false
+  },
+  onContextRestored: () => {
+    contextNotice.hidden = true
+  },
+})
 document.body.appendChild(app.domElement)
 
 // Marcadores overlay: una rejilla CSS a pantalla completa con la misma forma

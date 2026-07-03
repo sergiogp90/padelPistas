@@ -82,6 +82,26 @@ del navegador (~8–16) y penalizaría el rendimiento. Decisión detallada en el
 [ADR 0001](decisions/0001-render-multipista-un-renderer-viewports.md)
 (alternativa descartada: N renderers).
 
+### 4b. Coste del bucle acotado (cap de FPS, pixel ratio y pausa en segundo plano)
+El bucle de render limita su coste con topes sensatos, centralizados en
+`scene/renderConfig.ts`:
+
+- **Cap de FPS** (`FrameLimiter`): pinta a un objetivo (`TARGET_FPS`, 30 por
+  defecto) en vez de a la tasa del display, saltándose los disparos sobrantes de
+  `requestAnimationFrame`. El paso de tiempo que recibe la animación es el tiempo
+  **real** transcurrido, así que el movimiento es independiente de los FPS: bajar
+  el cap ahorra GPU sin ralentizar la escena.
+- **Pixel ratio acotado**: `setPixelRatio(min(devicePixelRatio, MAX_PIXEL_RATIO))`
+  evita renderizar de más en pantallas 4K/Retina, donde el coste crece con el
+  cuadrado del ratio sin mejora visible a distancia de TV.
+- **Pausa en segundo plano** (`visibilityPause`): al ocultarse la página se
+  detiene el bucle y se reanuda al volver, reiniciando el reloj para que no dé
+  saltos. No gasta CPU/GPU dibujando lo que nadie ve.
+
+*Por qué:* la app está pensada para estar **días encendida** en una TV; sin topes,
+una 4K o varias pistas gastarían GPU/energía sin beneficio visible. Cada pieza es
+pura e inyectable, y se prueba aislada (`frameLimiter`, `visibilityPause`).
+
 ### 5. Avatares estilizados y posiciones representativas
 Los jugadores son figuras estilizadas (*muñeco* low-poly) construidas **por
 código** con primitivas y geometría procedural de Three.js (`PlayerAvatar`),
@@ -99,7 +119,7 @@ para no disparar el recuento de triángulos con decenas de avatares en pantalla.
 
 *Por qué:* es un alcance realista para un proyecto personal y rinde bien en TV.
 El presupuesto se vigila con un test (≤ ~4.000 triángulos por avatar) para
-mantener 60 FPS con la rejilla multipista.
+sostener la tasa de FPS objetivo con la rejilla multipista (ver 4b).
 
 ### 6. Red de seguridad para el funcionamiento desatendido (`resilience/`)
 La app está pensada para estar **días encendida** sin nadie delante, así que se

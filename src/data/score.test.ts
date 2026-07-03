@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Score } from '../types';
-import { advanceScore, isMatchOver } from './score';
+import { advanceScore, isMatchOver, servingTeam } from './score';
 
 function makeScore(overrides: Partial<Score> = {}): Score {
   return {
@@ -10,6 +10,24 @@ function makeScore(overrides: Partial<Score> = {}): Score {
     ...overrides,
   };
 }
+
+describe('servingTeam', () => {
+  it('el equipo 0 saca el primer juego (0 juegos disputados)', () => {
+    expect(servingTeam(makeScore())).toBe(0);
+  });
+
+  it('alterna el saque en cada juego disputado', () => {
+    // 1 juego disputado → saca el equipo 1.
+    expect(servingTeam(makeScore({ games: [[1, 0]] }))).toBe(1);
+    // 2 juegos disputados → vuelve a sacar el equipo 0.
+    expect(servingTeam(makeScore({ games: [[1, 1]] }))).toBe(0);
+  });
+
+  it('cuenta los juegos de todos los sets, no solo el actual', () => {
+    // 6+4 + 3+2 = 15 juegos (impar) → saca el equipo 1.
+    expect(servingTeam(makeScore({ games: [[6, 4], [3, 2]] }))).toBe(1);
+  });
+});
 
 describe('advanceScore — puntos', () => {
   it('avanza 0 → 15 → 30 → 40', () => {

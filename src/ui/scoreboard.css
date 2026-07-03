@@ -54,10 +54,17 @@
 
   font-family: var(--font-family);
   color: var(--color-text);
+  /* Fondo más opaco y con desenfoque para máximo contraste del texto sobre el
+   * 3D en movimiento (la pista y la pelota no compiten con el marcador). */
   background: var(--color-surface);
+  backdrop-filter: blur(0.6cqw);
   border-radius: 0.9cqw;
   border: 0.1cqw solid var(--color-border);
-  box-shadow: 0 0.4cqw 2cqw rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0.4cqw 2cqw rgba(0, 0, 0, 0.55);
+
+  /* Sombra de texto sutil: despega el texto claro del fondo para leerlo a
+   * distancia aunque por detrás pase un elemento 3D claro. */
+  text-shadow: 0 0.1cqw 0.25cqw rgba(0, 0, 0, 0.7);
 
   /* No interceptar el ratón sobre el canvas 3D. */
   pointer-events: none;
@@ -65,13 +72,13 @@
 }
 
 .scoreboard__title {
-  font-size: 1.5cqw;
-  font-weight: 700;
+  font-size: 1.55cqw;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-accent);
   padding-bottom: 0.4cqw;
-  border-bottom: 0.1cqw solid rgba(255, 255, 255, 0.15);
+  border-bottom: 0.1cqw solid rgba(255, 255, 255, 0.18);
 }
 
 .scoreboard__empty {
@@ -81,14 +88,16 @@
   padding-top: 0.6cqw;
 }
 
-/* Cada fila: nombres | juegos por set | sets | punto. */
+/* Cada fila: distintivo de color | nombres | juegos por set | sets | punto. */
 .scoreboard__row {
   display: grid;
-  grid-template-columns: 22cqw auto 4cqw 6cqw;
+  grid-template-columns: 1.4cqw 22cqw auto 4cqw 6cqw;
   align-items: center;
   gap: 1cqw;
   /* Más alto por fila para dar aire al texto de cada pareja. */
   padding: 0.95cqw 0;
+  /* Transición del fondo para el resalte del equipo al saque. */
+  border-radius: 0.4cqw;
 }
 
 .scoreboard__row + .scoreboard__row {
@@ -98,6 +107,80 @@
 /* Cabecera de columnas: pequeña y discreta. */
 .scoreboard__row--header {
   padding: 0 0 0.2cqw;
+}
+
+/* Distintivo de color del equipo: pastilla vertical con el color de la pista,
+ * de modo que el marcador sea coherente con los colores del 3D. */
+.scoreboard__chip {
+  width: 0.9cqw;
+  height: 2.6cqw;
+  border-radius: 0.45cqw;
+  background: var(--team-color, var(--color-accent));
+  box-shadow: 0 0 0.6cqw color-mix(in srgb, var(--team-color, var(--color-accent)) 60%, transparent);
+}
+
+/* Hueco del distintivo en la cabecera (solo alinea columnas, sin color). */
+.scoreboard__chip--empty {
+  background: none;
+  box-shadow: none;
+}
+
+/* Equipo al saque: distintivo con anillo pulsante (indicador de servicio) y
+ * fila ligeramente resaltada. */
+.scoreboard__row--serving {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.scoreboard__row--serving .scoreboard__chip {
+  outline: 0.2cqw solid var(--color-accent);
+  outline-offset: 0.2cqw;
+  animation: scoreboard-serve 1.6s ease-in-out infinite;
+}
+
+/* Etiqueta accesible del saque: oculta visualmente (el chip es el indicador). */
+.scoreboard__serve-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@keyframes scoreboard-serve {
+  0%,
+  100% {
+    outline-color: var(--color-accent);
+  }
+  50% {
+    outline-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
+  }
+}
+
+/* Resalte de una celda que acaba de cambiar (punto/juego/set). Se aplica al
+ * reconstruir el marcador, así que la animación arranca al montarse el nodo. */
+.scoreboard__value--changed {
+  animation: scoreboard-flash 0.6s ease-out;
+}
+
+@keyframes scoreboard-flash {
+  0% {
+    transform: scale(1.35);
+    filter: brightness(1.9);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* Accesibilidad y confort en TV: sin movimiento si el usuario lo prefiere. */
+@media (prefers-reduced-motion: reduce) {
+  .scoreboard__value--changed,
+  .scoreboard__row--serving .scoreboard__chip {
+    animation: none;
+  }
 }
 
 .scoreboard__label,
@@ -140,9 +223,10 @@
   min-width: 2.4cqw;
   text-align: center;
   font-size: 1.6cqw;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.85);
+  /* Sets ya cerrados: legibles pero atenuados frente al set en curso. */
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* Juegos del set en curso: ligeramente resaltados. */
@@ -159,7 +243,8 @@
   color: var(--color-accent);
 }
 
-/* Punto actual: el elemento más prominente. */
+/* Punto actual: el elemento más prominente. Texto oscuro sobre acento cálido,
+ * así que se anula la sombra global (pensada para texto claro sobre 3D). */
 .scoreboard__point {
   text-align: center;
   font-size: 2.2cqw;
@@ -169,4 +254,5 @@
   background: var(--color-accent);
   border-radius: 0.5cqw;
   padding: 0.2cqw 0.4cqw;
+  text-shadow: none;
 }

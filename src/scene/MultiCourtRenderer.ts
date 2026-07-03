@@ -1,6 +1,9 @@
 import * as THREE from 'three'
 import { computeViewports, type Rect } from './gridLayout'
 import { installContextRecovery, type ContextRecovery } from './contextRecovery'
+import { FrameLimiter } from './frameLimiter'
+import { installVisibilityPause, type VisibilityPause } from './visibilityPause'
+import { MAX_PIXEL_RATIO, TARGET_FPS } from './renderConfig'
 import type { CourtView } from './CourtView'
 
 // Renderer multipista: un ÚNICO `WebGLRenderer` para todas las pistas.
@@ -12,6 +15,11 @@ import type { CourtView } from './CourtView'
 // estándar de Three.js): el viewport recorta la proyección a la celda y el
 // scissor limita el borrado/pintado a ese mismo rectángulo, de modo que cada
 // pista conserva su propia cámara y escena sin pisar a las vecinas.
+//
+// Coste acotado (ver `renderConfig`): el bucle limita los FPS a un objetivo con
+// paso de tiempo independiente (`FrameLimiter`), acota el `devicePixelRatio` y se
+// pausa cuando la página no está visible (`visibilityPause`), de modo que una TV
+// 4K o varias pistas no gasten GPU/energía de más ni dibujen lo que nadie ve.
 
 /** Opciones del renderer, sobre todo avisos de pérdida/restauración de contexto. */
 export interface MultiCourtRendererOptions {
@@ -21,6 +29,12 @@ export interface MultiCourtRendererOptions {
   onContextRestored?: () => void
   /** Recarga de último recurso si la restauración no es viable (inyectable en tests). */
   reload?: () => void
+  /** FPS objetivo del bucle. Por defecto `TARGET_FPS`; `<= 0` desactiva el tope. */
+  targetFps?: number
+  /** Tope del `devicePixelRatio`. Por defecto `MAX_PIXEL_RATIO`. */
+  maxPixelRatio?: number
+  /** Documento cuya visibilidad pausa/reanuda el bucle (inyectable en tests). */
+  doc?: Document
 }
 
 /**
@@ -41,12 +55,21 @@ export class MultiCourtRenderer {
   // modo que si el bucle se detiene o una excepción impide pintar, se estanca y
   // el watchdog lo detecta (ver `renderWatchdog`).
   private frameCount = 0
-  // Evita bucles `requestAnimationFrame` duplicados: `start()` es idempotente y
-  // solo hay un bucle vivo aunque se reanude tras recuperar el contexto.
+  // Evita bucles `requestAnimationFrame` duplicados: solo hay un bucle vivo aunque
+  // se reanude tras recuperar el contexto o volver de segundo plano.
   private running = false
+  // Intención de estar animando (lo pidió `start()`), independiente de si el bucle
+  // corre ahora mismo: mientras la página está oculta se pausa `running` pero
+  // `wantRunning` sigue en `true` para reanudar solo al volver a ser visible.
+  private wantRunning = false
   private readonly recovery: ContextRecovery
+  private readonly visibility: VisibilityPause
   private readonly onContextLost?: () => void
   private readonly onContextRestored?: () => void
+  private readonly maxPixelRatio: number
+  // Limitador de FPS: acota la tasa de pintado al objetivo con paso de tiempo
+  // independiente de la tasa real (ver `FrameLimiter`).
+  private readonly limiter: FrameLimiter
   // Reloj para medir el tiempo entre fotogramas y animar de forma independiente
   // de los FPS (ver `CourtView.update`).
   private readonly clock = new THREE.Clock()
@@ -54,6 +77,8 @@ export class MultiCourtRenderer {
   constructor(options: MultiCourtRendererOptions = {}) {
     this.onContextLost = options.onContextLost
     this.onContextRestored = options.onContextRestored
+    this.maxPixelRatio = options.maxPixelRatio ?? MAX_PIXEL_RATIO
+    this.limiter = new FrameLimiter(options.targetFps ?? TARGET_FPS)
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true })
     this.configureRenderer()
@@ -68,12 +93,24 @@ export class MultiCourtRenderer {
       },
       { reload: options.reload },
     )
+
+    // Pausa el bucle cuando la página deja de verse y lo reanuda al volver, para
+    // no gastar GPU/energía dibujando en segundo plano.
+    this.visibility = installVisibilityPause(
+      {
+        onHidden: () => this.pause(),
+        onVisible: () => this.resume(),
+      },
+      { doc: options.doc },
+    )
   }
 
   // Aplica la configuración del renderer. Se llama al crearlo y al restaurar el
   // contexto, ya que la pérdida invalida el estado GL y hay que reestablecerlo.
   private configureRenderer(): void {
-    this.renderer.setPixelRatio(window.devicePixelRatio)
+    // Acota el pixel ratio: por encima de 2 el coste se dispara (crece con su
+    // cuadrado) sin mejora visible a la distancia de una TV (ver `renderConfig`).
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.maxPixelRatio))
     // Necesario para que cada celda limpie y pinte solo dentro de su viewport.
     this.renderer.setScissorTest(true)
     // Flujo de color y tono para un aspecto más natural en la TV: salida en sRGB
@@ -148,25 +185,55 @@ export class MultiCourtRenderer {
    * Arranca el bucle de render con `requestAnimationFrame`. Idempotente: llamarlo
    * con el bucle ya en marcha no crea un segundo bucle (evita `rAF` duplicados al
    * reanudar tras recuperar el contexto).
+   *
+   * Marca la intención de animar y arranca el bucle si la página está visible; si
+   * está oculta, no dibuja y esperará a volver a primer plano para reanudar.
    */
   start(): void {
-    if (this.running) return
+    this.wantRunning = true
+    this.resume()
+  }
+
+  /**
+   * Detiene el bucle por completo: no reanudará al volver la página a primer plano
+   * (a diferencia de la pausa por visibilidad). Lo usan la pérdida de contexto y
+   * `dispose`.
+   */
+  stop(): void {
+    this.wantRunning = false
+    this.pause()
+  }
+
+  // Arranca el bucle de `rAF` si procede: solo si se pidió animar (`wantRunning`),
+  // no hay ya un bucle vivo y la página está visible. Reinicia reloj y limitador
+  // para que el primer fotograma tras (re)anudar no arrastre el tiempo transcurrido
+  // parado: se reanuda sin saltos.
+  private resume(): void {
+    if (this.running || !this.wantRunning || this.visibility.hidden) return
     this.running = true
     this.clock.start()
+    this.limiter.reset()
     const loop = (): void => {
       // Reprograma el siguiente frame ANTES de dibujar para que una excepción al
       // actualizar/pintar no rompa la cadena de `rAF`; el fotograma no llega a
       // contarse, así que el watchdog detecta el estancamiento y reanima el bucle.
       this.frameHandle = requestAnimationFrame(loop)
-      this.update(this.clock.getDelta())
+      // Cap de FPS: el limitador decide si toca pintar y con qué paso de tiempo.
+      // Los disparos sobrantes se saltan (no cuentan como fotograma) para acotar
+      // el coste al objetivo sin alterar la velocidad de la animación.
+      const step = this.limiter.tick(this.clock.getDelta())
+      if (step === null) return
+      this.update(step)
       this.render()
       this.frameCount++
     }
     loop()
   }
 
-  /** Detiene el bucle de render. */
-  stop(): void {
+  // Detiene el bucle de `rAF` en curso sin cambiar la intención de animar, de modo
+  // que una pausa por visibilidad pueda reanudarse luego. `cancelAnimationFrame`
+  // es inocuo si no hay frame pendiente.
+  private pause(): void {
     this.running = false
     cancelAnimationFrame(this.frameHandle)
   }
@@ -190,10 +257,11 @@ export class MultiCourtRenderer {
     return this.frameCount
   }
 
-  /** Detiene el bucle, retira los listeners de contexto y libera el renderer. */
+  /** Detiene el bucle, retira los listeners de contexto/visibilidad y libera el renderer. */
   dispose(): void {
     this.stop()
     this.recovery.uninstall()
+    this.visibility.uninstall()
     this.renderer.dispose()
   }
 }

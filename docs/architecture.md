@@ -134,15 +134,44 @@ protege en varias capas apiladas, de la más suave a la más dura:
    **recarga la página** como último recurso.
 
 Los umbrales (timeout del watchdog, nº de reintentos, ventana de tiempo) viven en
-un único `resilience/config.ts`.
+un único `resilience/config.ts`. El detalle y las alternativas descartadas están en
+el [ADR 0002](decisions/0002-modo-tv-kiosko-rotacion-y-resiliencia.md).
 
 *Por qué:* una excepción no capturada o un cuelgue silencioso dejarían la TV con
 una imagen congelada sin que nadie lo note. Cada capa se prueba aislada
 inyectando sus dependencias (reloj, documento, recarga), igual que el modo kiosko.
+
+### 7. Modo kiosko para una TV desatendida (`kiosk/`)
+La app se presenta como un *display* y no como una pestaña de navegador:
+`startKioskMode()` (`kiosk/index.ts`) orquesta piezas independientes —cursor
+autoocultado (`cursorAutoHide`), bloqueo de menú contextual y zoom por gesto
+(`inputGuards`), *wake lock* para que la pantalla no entre en reposo (`wakeLock`) y
+entrada a pantalla completa con el primer gesto (`fullscreen`)—. Las reglas
+puramente visuales viven en `kiosk.css` bajo `.kiosk-active`.
+
+*Por qué:* la app vive **días encendida y desatendida** en un club; sin esto se
+verían el cursor, menús del navegador o el salvapantallas. Cada pieza es inyectable,
+se prueba aislada y **degrada con elegancia** si su API no existe, así que activar
+el kiosko es seguro en cualquier navegador (Chrome/Chromium es el de referencia).
+
+### 8. Rotación automática de vistas (`kiosk/viewRotation.ts`)
+Sin nadie que interactúe, el foco rota solo de forma cíclica: **vista global** (la
+rejilla con todas las pistas) → **cada pista a pantalla completa** → global otra
+vez, cambiando cada **30 s** (`ROTATION_INTERVAL_MS`). El módulo es solo una máquina
+de estados con temporizador (sin Three.js ni DOM); `main.ts` pinta cada estado
+**reutilizando la maquinaria del render multipista** —la vista individual es una
+rejilla de 1 celda a pantalla completa—, sin duplicar layout. Se pausa con la
+visibilidad de la página y las pistas ocultas siguen recibiendo datos.
+
+*Por qué:* la vista global se lee de conjunto pero deja cada pista pequeña; alternar
+con cada pista a pantalla completa da lo mejor de ambas sin intervención. Detalle y
+alternativas en el [ADR 0002](decisions/0002-modo-tv-kiosko-rotacion-y-resiliencia.md).
 
 ---
 
 > 💡 Las decisiones importantes se documentan como **ADRs**
 > (*Architecture Decision Records*) en [`docs/decisions/`](decisions/), un
 > archivo por decisión. Ver el [ADR 0001 — render
-> multipista](decisions/0001-render-multipista-un-renderer-viewports.md).
+> multipista](decisions/0001-render-multipista-un-renderer-viewports.md) y el
+> [ADR 0002 — modo TV/kiosko: rotación y
+> resiliencia](decisions/0002-modo-tv-kiosko-rotacion-y-resiliencia.md).

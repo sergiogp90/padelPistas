@@ -34,7 +34,7 @@ punta (una "rebanada vertical"), priorizando el valor.
 | **M2 — Tiempo real** | Interfaz `DataSource` + fuente *mock* que simula un partido y actualiza el marcador automáticamente. | ✅ Finalizado |
 | **M3 — Multipista** | Sistema de rejilla para mostrar N pistas a la vez, cada una con su partido en vivo. Un único renderer con un *viewport* por celda. | ✅ Finalizado |
 | **M4 — Jugadores** | Avatares estilizados (4 por pista, color por equipo) en posiciones representativas. | 🔜 En curso |
-| **M5 — Modo TV / pulido** | Modo kiosko, auto-recuperación, optimización de rendimiento y estética final. | 📋 Planificado |
+| **M5 — Modo TV / pulido** | Modo kiosko, rotación automática de vistas, auto-recuperación y optimización de rendimiento. Decisiones en el [ADR 0002](decisions/0002-modo-tv-kiosko-rotacion-y-resiliencia.md). | ✅ Finalizado |
 | **M6 — Datos reales** *(futuro)* | Sustituir el *mock* por una fuente real (API o panel de control) implementando la interfaz `DataSource`. Además, **inicializar los avatares a partir de los datos** de cada jugador (p. ej. elegir el diseño de avatar según el género), en lugar de colocarlos con valores fijos. | 💡 Idea |
 
 ## Decisiones de alcance (versión inicial)

@@ -192,6 +192,30 @@ evolucione su JSON sin arrastrar cambios por el 3D ni la UI —solo se toca el
 adaptador—, y hace el mapeo **puro y testeable** con ejemplos de payload (incluida
 la pista libre, `match: null`), antes incluso de que exista la llamada de red.
 
+### 10. La fuente de datos se elige por configuración (mock ⇄ API) con fallback a mock
+El origen de los datos —`MockDataSource` o `ApiDataSource`— se decide **por
+configuración**, no en el código. Una factoría (`data/createDataSources.ts`)
+construye una fuente por pista según una `DataSourceConfig` que un lector puro
+(`data/dataSourceConfig.ts`) resuelve de:
+
+- **`VITE_DATA_SOURCE`** (`mock` | `api`) — fijada en build/despliegue.
+- **`?source=`** en la URL — **con prioridad** sobre la env var, para alternar en
+  una demo sin reconstruir.
+
+El `apiBaseUrl` sale de `VITE_API_BASE_URL` (por defecto `/api`) y en modo `api`
+cada pista sondea `GET {apiBaseUrl}/courts/:id`. Por defecto —sin config o ante un
+valor desconocido— se usa **mock** (comportamiento actual). Las fuentes de API se
+**siembran con los datos mock** de su pista: ese `Court` es el estado inicial y de
+respaldo hasta la primera respuesta, así que si la API no está disponible la
+pantalla muestra datos con sentido y el `ApiDataSource` sigue reintentando el
+sondeo (encaminando los errores a `onError`) hasta que la API vuelve.
+
+*Por qué:* materializa la decisión 1 (origen tras una interfaz) como un
+interruptor de configuración: se despliega con mock y se pasa a datos reales sin
+tocar el 3D ni la UI, con una red de seguridad que evita la pantalla en blanco si
+la red o la configuración fallan. El lector y la factoría son puros e inyectables,
+probados aislados (`dataSourceConfig.test.ts`, `createDataSources.test.ts`).
+
 ---
 
 > 💡 Las decisiones importantes se documentan como **ADRs**

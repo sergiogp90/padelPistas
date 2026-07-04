@@ -4,7 +4,8 @@ import { assignTeamColors } from './scene/teamColors'
 import { MultiCourtRenderer } from './scene/MultiCourtRenderer'
 import { installPerfMonitor } from './scene/perfMonitor'
 import { gridShape } from './scene/gridLayout'
-import { createMockDataSources } from './data/createMockDataSources'
+import { createDataSources } from './data/createDataSources'
+import { resolveDataSourceConfig } from './data/dataSourceConfig'
 import { startKioskMode } from './kiosk'
 import { createViewRotation, type RotationView } from './kiosk/viewRotation'
 import { installGlobalErrorHandlers } from './resilience/globalErrorHandlers'
@@ -18,7 +19,21 @@ const COURT_COUNT = 4
 // (su escena, su cámara y su marcador); el renderer las dibuja en un único canvas.
 // A cada pista se le asigna un par de colores único para que ningún color de
 // equipo se repita entre pistas distintas.
-const sources = createMockDataSources(COURT_COUNT)
+//
+// La fuente (mock por defecto ⇄ API real) se elige por configuración —variable
+// `VITE_DATA_SOURCE` o parámetro `?source=`— sin tocar el resto de la app: todas
+// cumplen el contrato `DataSource` (ver `data/createDataSources.ts` y README).
+const dataSourceConfig = resolveDataSourceConfig()
+console.info(`[dataSource] fuente activa: "${dataSourceConfig.kind}"`)
+const sources = createDataSources(COURT_COUNT, {
+  config: dataSourceConfig,
+  // Ante un fallo de red, el `ApiDataSource` conserva el último estado (mock de
+  // respaldo) y sigue sondeando; solo asomamos un aviso discreto y no invasivo.
+  onError: (error) => {
+    console.warn('[dataSource] error al leer de la API; se usa el dato de respaldo', error)
+    flashErrorNotice('Sin conexión con la API; mostrando datos de respaldo…')
+  },
+})
 const teamColors = assignTeamColors(COURT_COUNT)
 const views = sources.map(
   (source, i) => new CourtView(source, {}, { teamColors: teamColors[i] }),

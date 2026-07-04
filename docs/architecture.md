@@ -14,7 +14,14 @@
 ```
 src/
   types/    Tipos del dominio (Court, Match, Team, Player, Score)
-  data/     Fuentes de datos (mock hoy; interfaz DataSource en M2)
+  data/     Fuentes de datos tras la interfaz DataSource (mock ⇄ API real):
+              DataSource          contrato del origen de datos (+ estado de conexión)
+              MockDataSource      simulación local de un partido (por defecto)
+              apiContract         DTO de la API propia (tipos Api*, formato de cable)
+              mapApiCourt         adaptador puro DTO -> dominio
+              ApiDataSource       polling de la API propia con backoff y estado online/offline
+              dataSourceConfig    resuelve mock/api de VITE_DATA_SOURCE / ?source=
+              createDataSources   factoría: una fuente por pista según la config
   scene/    Escena 3D y render multipista:
               PadelCourt          pista 3D reutilizable
               CourtView           una pista autocontenida (escena + cámara + marcador)
@@ -168,8 +175,10 @@ con cada pista a pantalla completa da lo mejor de ambas sin intervención. Detal
 alternativas en el [ADR 0002](decisions/0002-modo-tv-kiosko-rotacion-y-resiliencia.md).
 
 ### 9. La API propia tiene su propio contrato (DTO) y un adaptador al dominio
-Cuando llegue el hito M6 (datos reales), la app leerá el estado de las pistas de
-una **API propia**. Esa API define su **contrato** —la forma del JSON que
+La fuente de datos real del hito M6 es una **API propia** de la que la app lee el
+estado de las pistas (por qué una API propia consumida por *polling*, y no
+WebSocket ni un panel de control, en el [ADR 0003](decisions/0003-fuente-de-datos-real-api-propia.md)).
+Esa API define su **contrato** —la forma del JSON que
 devuelve— en tipos `Api*` (`data/apiContract.ts`), separados de los tipos del
 dominio. Un **adaptador puro** (`data/mapApiCourt.ts`, `mapApiCourt(dto): Court`)
 traduce el DTO al dominio; el `ApiDataSource` (issue aparte) solo hará la llamada
@@ -231,6 +240,8 @@ probados aislados (`dataSourceConfig.test.ts`, `createDataSources.test.ts`).
 > 💡 Las decisiones importantes se documentan como **ADRs**
 > (*Architecture Decision Records*) en [`docs/decisions/`](decisions/), un
 > archivo por decisión. Ver el [ADR 0001 — render
-> multipista](decisions/0001-render-multipista-un-renderer-viewports.md) y el
+> multipista](decisions/0001-render-multipista-un-renderer-viewports.md), el
 > [ADR 0002 — modo TV/kiosko: rotación y
-> resiliencia](decisions/0002-modo-tv-kiosko-rotacion-y-resiliencia.md).
+> resiliencia](decisions/0002-modo-tv-kiosko-rotacion-y-resiliencia.md) y el
+> [ADR 0003 — fuente de datos real: API propia por
+> *polling*](decisions/0003-fuente-de-datos-real-api-propia.md).

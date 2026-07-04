@@ -29,6 +29,36 @@ npm run dev
 | `npm run build`   | Compila TypeScript y genera el build en `dist/`  |
 | `npm run preview` | Sirve localmente el build de producción          |
 
+## Fuente de datos (mock ⇄ API)
+
+La app puede leer los datos de un **mock local** (por defecto) o de una **API
+real**, y se elige **por configuración**, sin tocar el código. Ante un valor
+desconocido o un fallo de red, cae con elegancia al mock.
+
+**Por variable de entorno** (recomendado para despliegues). Crea un `.env.local`:
+
+```bash
+# Fuente: "mock" (por defecto) o "api"
+VITE_DATA_SOURCE=api
+# Base de la API propia (opcional; por defecto "/api")
+VITE_API_BASE_URL=https://mi-club.example/api
+```
+
+En modo `api` la app consulta `GET {VITE_API_BASE_URL}/courts/:id` por pista y
+refresca el marcador por *polling* (ver [arquitectura](docs/architecture.md)).
+
+**Por parámetro de URL** (rápido para una demo, sin reconstruir el build). Tiene
+prioridad sobre la variable de entorno:
+
+```
+http://localhost:5173/?source=api
+http://localhost:5173/?source=mock
+```
+
+> Si no se configura nada, o el valor no se reconoce, se usa el **mock**
+> (comportamiento actual). Si la API no está disponible, cada pista conserva su
+> dato de respaldo (mock) y el sondeo se reintenta solo hasta que la API vuelve.
+
 ## Documentación
 
 - 📍 [Roadmap y objetivos](docs/ROADMAP.md) — la visión y los hitos del proyecto

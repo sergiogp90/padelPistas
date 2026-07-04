@@ -1,0 +1,10 @@
+# Salida de compilación de .NET
+bin/
+obj/
+
+# Artefactos de publicación
+publish/
+*.user
+
+# Carpeta de Visual Studio
+.vs/

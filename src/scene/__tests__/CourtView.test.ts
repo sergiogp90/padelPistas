@@ -316,6 +316,44 @@ describe('CourtView', () => {
     })
   })
 
+  it('deriva el género de cada avatar del dato del jugador (no del azar)', () => {
+    // Partido con géneros distintos por posición para poder mapear cada avatar a
+    // su jugador: equipo 0 → [male, female]; equipo 1 → [female, male].
+    const court: Court = {
+      id: 1,
+      name: 'Pista Mixta',
+      match: {
+        teams: [
+          { players: [{ name: 'A', gender: 'male' }, { name: 'B', gender: 'female' }] },
+          { players: [{ name: 'C', gender: 'female' }, { name: 'D', gender: 'male' }] },
+        ],
+        score: { currentPoint: [0, 0], games: [[0, 0]], sets: [0, 0] },
+      },
+    }
+    const { source } = createFakeSource(court)
+    const view = new CourtView(source)
+
+    for (const player of view.players) {
+      // team 0 juega en Z<0 y team 1 en Z>0; playerIndex 0 en X<0 y 1 en X>0.
+      const team = player.position.z < 0 ? 0 : 1
+      const index = player.position.x < 0 ? 0 : 1
+      const expected = court.match!.teams[team].players[index].gender
+      expect(player.gender).toBe(expected)
+    }
+  })
+
+  it('recurre al azar como fallback si la pista no tiene partido', () => {
+    const court: Court = { id: 1, name: 'Sin partido', match: null }
+    const { source } = createFakeSource(court)
+    const view = new CourtView(source)
+
+    // Sin dato de género, cada avatar sigue teniendo un género válido (elegido al
+    // azar por PlayerAvatar), de modo que la escena se puebla igualmente.
+    for (const player of view.players) {
+      expect(['male', 'female']).toContain(player.gender)
+    }
+  })
+
   it('monta el marcador con el estado inicial de la fuente', () => {
     const { source } = createFakeSource(buildCourt('Pista Norte', 15))
     const view = new CourtView(source)

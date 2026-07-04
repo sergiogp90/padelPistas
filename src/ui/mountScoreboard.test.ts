@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mountScoreboard } from './Scoreboard';
-import type { DataSource } from '../data/DataSource';
+import type { ConnectionStatus, DataSource, StatusReportingDataSource } from '../data/DataSource';
 import type { Court } from '../types';
 
 /** `DataSource` de prueba controlable manualmente: emite cuando se le pide. */
@@ -19,6 +19,35 @@ function createFakeSource(initial: Court) {
     listeners.forEach((l) => l(next));
   };
   return { source, emit };
+}
+
+/** Fuente de prueba que además reporta estado de conexión (`StatusReportingDataSource`). */
+function createFakeStatusSource(initial: Court, initialStatus: ConnectionStatus = 'connecting') {
+  let court = initial;
+  let status = initialStatus;
+  const listeners = new Set<(c: Court) => void>();
+  const statusListeners = new Set<(s: ConnectionStatus) => void>();
+  const source: StatusReportingDataSource = {
+    getCourt: () => court,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    getStatus: () => status,
+    subscribeStatus(listener) {
+      statusListeners.add(listener);
+      return () => statusListeners.delete(listener);
+    },
+  };
+  const emit = (next: Court) => {
+    court = next;
+    listeners.forEach((l) => l(next));
+  };
+  const emitStatus = (next: ConnectionStatus) => {
+    status = next;
+    statusListeners.forEach((l) => l(next));
+  };
+  return { source, emit, emitStatus };
 }
 
 function buildCourt(point: 0 | 15 | 30 | 40): Court {
@@ -93,5 +122,50 @@ describe('mountScoreboard', () => {
     emit(buildCourt(40));
 
     expect(team0Point(el)).toBe('0');
+  });
+
+  describe('estado de conexión', () => {
+    const badge = (el: HTMLElement) => el.querySelector('.scoreboard__status');
+
+    it('no pinta aviso para fuentes sin reporte de estado (mock)', () => {
+      const { source } = createFakeSource(buildCourt(15));
+      const { el } = mountScoreboard(source);
+      expect(badge(el)).toBeNull();
+    });
+
+    it('refleja el estado inicial de la fuente al montar', () => {
+      const { source } = createFakeStatusSource(buildCourt(15), 'connecting');
+      const { el } = mountScoreboard(source);
+      expect(badge(el)?.textContent).toContain('Conectando');
+    });
+
+    it('muestra «sin datos» al pasar la fuente a offline y lo retira al volver a online', () => {
+      const { source, emitStatus } = createFakeStatusSource(buildCourt(15), 'online');
+      const { el } = mountScoreboard(source);
+      expect(badge(el)).toBeNull();
+
+      emitStatus('offline');
+      expect(badge(el)?.classList.contains('scoreboard__status--offline')).toBe(true);
+      // El marcador sigue mostrando el último dato conocido (de respaldo).
+      expect(team0Point(el)).toBe('15');
+
+      emitStatus('online');
+      expect(badge(el)).toBeNull();
+    });
+
+    it('un cambio de estado no resalta celdas (mismo Court)', () => {
+      const { source, emitStatus } = createFakeStatusSource(buildCourt(15), 'online');
+      const { el } = mountScoreboard(source);
+      emitStatus('offline');
+      expect(el.querySelectorAll('.scoreboard__value--changed')).toHaveLength(0);
+    });
+
+    it('deja de reaccionar a cambios de estado tras stop()', () => {
+      const { source, emitStatus } = createFakeStatusSource(buildCourt(15), 'online');
+      const { el, stop } = mountScoreboard(source);
+      stop();
+      emitStatus('offline');
+      expect(badge(el)).toBeNull();
+    });
   });
 });

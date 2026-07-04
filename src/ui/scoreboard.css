@@ -88,6 +88,65 @@
   padding-top: 0.6cqw;
 }
 
+/* Aviso de conexión: rótulo de alto contraste que aparece sobre el marcador
+ * cuando los datos no están frescos (fuente `connecting`/`offline`, ver #103).
+ * Pensado para leerse a distancia de TV sin tapar nombres ni marcador: pastilla
+ * ancha con punto indicador, colores calientes para el corte y neutros para la
+ * conexión inicial. Se retira solo al recuperarse la API. */
+.scoreboard__status {
+  display: flex;
+  align-items: center;
+  gap: 0.6cqw;
+  margin-top: 0.5cqw;
+  padding: 0.55cqw 1cqw;
+  border-radius: 0.6cqw;
+  font-size: 1.35cqw;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
+/* Punto indicador (pulsante) a la izquierda del texto. */
+.scoreboard__status::before {
+  content: '';
+  width: 1.1cqw;
+  height: 1.1cqw;
+  border-radius: 50%;
+  background: currentColor;
+  animation: scoreboard-status-pulse 1.4s ease-in-out infinite;
+}
+
+/* Sin datos: la API lleva varios sondeos caída. Rojo de aviso, bien visible. */
+.scoreboard__status--offline {
+  color: #fff;
+  background: #b3261e;
+  box-shadow: 0 0 1.2cqw rgba(179, 38, 30, 0.7);
+}
+
+/* Conectando: aún no ha llegado la primera respuesta. Neutro y menos alarmante. */
+.scoreboard__status--connecting {
+  color: var(--color-bg, #111);
+  background: #e6b800;
+  box-shadow: 0 0 1cqw rgba(230, 184, 0, 0.6);
+}
+
+@keyframes scoreboard-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scoreboard__status::before {
+    animation: none;
+  }
+}
+
 /* Cada fila: distintivo de color | nombres | juegos por set | sets | punto. */
 .scoreboard__row {
   display: grid;

@@ -32,6 +32,8 @@ interface PlayerSlot {
   z: number
   /** Equipo al que pertenece (índice en `TEAM_COLORS` y en `match.teams`). */
   team: 0 | 1
+  /** Posición dentro del equipo (índice en `Team.players`: 0 o 1). */
+  playerIndex: 0 | 1
 }
 
 /**
@@ -84,7 +86,7 @@ function slotsForScenario(spec: ScenarioSpec): PlayerSlot[] {
     const depths = team === 0 ? spec.team0 : spec.team1
     const sign = team === 0 ? -1 : 1
     depths.forEach((depth, i) => {
-      slots.push({ x: LATERAL_X[i], z: sign * depth, team })
+      slots.push({ x: LATERAL_X[i], z: sign * depth, team, playerIndex: i as 0 | 1 })
     })
   }
   return slots
@@ -178,11 +180,16 @@ export class CourtView {
     // Colores de los dos equipos de esta pista: los indicados o azul/naranja.
     this.teamColors = options.teamColors ?? TEAM_COLORS
 
-    // 4 jugadores según el escenario elegido, con el color de su equipo.
+    // 4 jugadores según el escenario elegido, con el color de su equipo. El
+    // diseño del avatar (pelo, prenda, silueta) se deriva del `gender` del
+    // `Player` correspondiente en los datos; si falta el dato (o no hay partido),
+    // `PlayerAvatar` lo decide al azar como fallback.
     // Se añaden al sub-árbol de la pista para que se muevan con la celda.
+    const match = source.getCourt().match
     const slots = slotsForScenario(POSITION_SCENARIOS[this.scenario])
     this.players = slots.map((slot) => {
-      const avatar = new PlayerAvatar(this.teamColors[slot.team])
+      const gender = match?.teams[slot.team].players[slot.playerIndex].gender
+      const avatar = new PlayerAvatar(this.teamColors[slot.team], { gender })
       avatar.position.set(slot.x, 0, slot.z)
       // El avatar mira hacia +Z por defecto; el equipo de la mitad lejana (Z>0)
       // gira 180° para encarar la red y quedar frente a sus rivales.

@@ -167,6 +167,31 @@ visibilidad de la página y las pistas ocultas siguen recibiendo datos.
 con cada pista a pantalla completa da lo mejor de ambas sin intervención. Detalle y
 alternativas en el [ADR 0002](decisions/0002-modo-tv-kiosko-rotacion-y-resiliencia.md).
 
+### 9. La API propia tiene su propio contrato (DTO) y un adaptador al dominio
+Cuando llegue el hito M6 (datos reales), la app leerá el estado de las pistas de
+una **API propia**. Esa API define su **contrato** —la forma del JSON que
+devuelve— en tipos `Api*` (`data/apiContract.ts`), separados de los tipos del
+dominio. Un **adaptador puro** (`data/mapApiCourt.ts`, `mapApiCourt(dto): Court`)
+traduce el DTO al dominio; el `ApiDataSource` (issue aparte) solo hará la llamada
+de red y pasará la respuesta por este adaptador.
+
+Endpoints previstos y campos:
+
+```
+GET /api/courts       -> ApiCourt[]   Estado de todas las pistas.
+GET /api/courts/:id   -> ApiCourt     Estado de una pista concreta.
+
+ApiCourt { id: number, name: string, match: ApiMatch | null }
+ApiMatch { teams: [ApiTeam, ApiTeam], score: ApiScore }
+ApiScore { currentPoint: [ApiPoint, ApiPoint], games: [number, number][], sets: [number, number] }
+ApiPoint = 0 | 15 | 30 | 40 | "AD"   // "AD" (ventaja) → 'Ventaja' en el dominio
+```
+
+*Por qué:* separar el formato de cable del dominio permite que el backend
+evolucione su JSON sin arrastrar cambios por el 3D ni la UI —solo se toca el
+adaptador—, y hace el mapeo **puro y testeable** con ejemplos de payload (incluida
+la pista libre, `match: null`), antes incluso de que exista la llamada de red.
+
 ---
 
 > 💡 Las decisiones importantes se documentan como **ADRs**

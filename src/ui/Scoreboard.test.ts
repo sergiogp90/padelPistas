@@ -139,6 +139,40 @@ describe('createScoreboard', () => {
     });
   });
 
+  describe('estado de conexión', () => {
+    it('no pinta aviso cuando el estado es online', () => {
+      const overlay = createScoreboard(buildCourt(buildMatch()), { status: 'online' });
+      expect(overlay.querySelector('.scoreboard__status')).toBeNull();
+    });
+
+    it('no pinta aviso cuando no se indica estado', () => {
+      const overlay = createScoreboard(buildCourt(buildMatch()));
+      expect(overlay.querySelector('.scoreboard__status')).toBeNull();
+    });
+
+    it('pinta el aviso «sin datos» cuando el estado es offline', () => {
+      const overlay = createScoreboard(buildCourt(buildMatch()), { status: 'offline' });
+      const badge = overlay.querySelector('.scoreboard__status');
+      expect(badge).not.toBeNull();
+      expect(badge?.classList.contains('scoreboard__status--offline')).toBe(true);
+      expect(badge?.textContent).toContain('Sin datos');
+      expect(badge?.getAttribute('role')).toBe('status');
+    });
+
+    it('pinta el aviso «conectando» cuando el estado es connecting', () => {
+      const overlay = createScoreboard(buildCourt(buildMatch()), { status: 'connecting' });
+      const badge = overlay.querySelector('.scoreboard__status');
+      expect(badge?.classList.contains('scoreboard__status--connecting')).toBe(true);
+      expect(badge?.textContent).toContain('Conectando');
+    });
+
+    it('muestra el aviso también sin partido en curso', () => {
+      const overlay = createScoreboard(buildCourt(null), { status: 'offline' });
+      expect(overlay.querySelector('.scoreboard__status')).not.toBeNull();
+      expect(overlay.querySelector('.scoreboard__empty')).not.toBeNull();
+    });
+  });
+
   describe('resalte de cambios', () => {
     it('marca como cambiada la celda de punto indicada en highlight', () => {
       const overlay = createScoreboard(buildCourt(buildMatch()), {

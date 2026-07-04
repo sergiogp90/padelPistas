@@ -39,3 +39,29 @@ export const RESTART_WINDOW_MS = 60_000
  * texto fijo sobre la imagen de la TV.
  */
 export const ERROR_OVERLAY_TIMEOUT_MS = 6_000
+
+// --- Resiliencia de la fuente de datos de API (ver `data/ApiDataSource.ts`) ---
+
+/**
+ * Fallos de sondeo consecutivos tras los cuales el `ApiDataSource` da la pista
+ * por «sin datos» (estado `offline`) y la TV lo señala. Un margen mayor que 1
+ * evita marcar «sin datos» ante un microcorte que se recupera al primer
+ * reintento; los datos de respaldo se siguen mostrando entretanto.
+ */
+export const API_OFFLINE_THRESHOLD = 2
+
+/**
+ * Retardo del primer reintento tras un fallo de sondeo (ms). Bastante más corto
+ * que el intervalo normal para recuperarse pronto de un fallo transitorio.
+ */
+export const API_RETRY_BASE_MS = 1_000
+
+/**
+ * Tope del retardo de reintento (ms) con la API caída de forma sostenida: el
+ * *backoff* exponencial no espera más que esto entre sondeos, de modo que la
+ * pantalla se recupera sola en cuanto la API vuelve sin martillearla mientras no.
+ */
+export const API_MAX_BACKOFF_MS = 30_000
+
+/** Factor de crecimiento del *backoff* de reintentos (exponencial). */
+export const API_BACKOFF_FACTOR = 2

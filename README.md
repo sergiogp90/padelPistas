@@ -57,7 +57,10 @@ http://localhost:5173/?source=mock
 
 > Si no se configura nada, o el valor no se reconoce, se usa el **mock**
 > (comportamiento actual). Si la API no está disponible, cada pista conserva su
-> dato de respaldo (mock) y el sondeo se reintenta solo hasta que la API vuelve.
+> dato de respaldo (mock) y el sondeo se **reintenta con *backoff* exponencial**
+> hasta que la API vuelve; tras varios fallos seguidos el marcador muestra un
+> aviso **«sin datos · reconectando»** legible en la TV, que se retira solo al
+> recuperarse la conexión (ver [arquitectura](docs/architecture.md)).
 
 ## Documentación
 

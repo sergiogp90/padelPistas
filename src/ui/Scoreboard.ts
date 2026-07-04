@@ -1,6 +1,7 @@
 import './scoreboard.css';
 import type { Court, Match, Point } from '../types';
-import type { DataSource } from '../data/DataSource';
+import type { ConnectionStatus, DataSource } from '../data/DataSource';
+import { isStatusReporting } from '../data/DataSource';
 import { servingTeam } from '../data/score';
 
 // Marcador como overlay HTML/CSS superpuesto al canvas 3D.
@@ -32,6 +33,34 @@ export interface ScoreboardOptions {
   teamColors?: readonly [string, string];
   /** Celdas a resaltar por haber cambiado en esta actualización. */
   highlight?: ScoreboardHighlight;
+  /**
+   * Estado de la conexión de la fuente. Si es distinto de `online` (o
+   * `undefined`), se pinta un aviso «conectando»/«sin datos» sobre el marcador
+   * para que se vea a distancia de TV que los datos no están frescos.
+   */
+  status?: ConnectionStatus;
+}
+
+/** Texto del aviso de conexión para cada estado no disponible. */
+const STATUS_LABELS: Record<Exclude<ConnectionStatus, 'online'>, string> = {
+  connecting: 'Conectando…',
+  offline: 'Sin datos · reconectando…',
+};
+
+/**
+ * Añade al marcador un aviso de conexión cuando los datos no están frescos
+ * (`connecting`/`offline`). En `online` (o sin estado) no pinta nada. El aviso es
+ * un rótulo de alto contraste, legible en la TV, que no oculta los nombres ni el
+ * marcador: solo señala que lo mostrado es el último dato conocido (de respaldo).
+ */
+function appendStatusBadge(overlay: HTMLElement, status: ConnectionStatus): void {
+  if (status === 'online') return;
+  const badge = document.createElement('div');
+  badge.className = `scoreboard__status scoreboard__status--${status}`;
+  badge.textContent = STATUS_LABELS[status];
+  // `role="status"` para que los lectores anuncien el cambio de estado.
+  badge.setAttribute('role', 'status');
+  overlay.appendChild(badge);
 }
 
 /** Formatea un punto de pádel para mostrarlo (la ventaja se abrevia "Vent."). */
@@ -138,6 +167,10 @@ export function createScoreboard(
   title.textContent = court.name;
   overlay.appendChild(title);
 
+  // Aviso de conexión (si la fuente lo reporta y no está `online`): se pinta
+  // antes del cuerpo para que sea lo primero visible, incluso sin partido.
+  if (options.status) appendStatusBadge(overlay, options.status);
+
   if (!court.match) {
     const empty = document.createElement('div');
     empty.className = 'scoreboard__empty';
@@ -220,6 +253,11 @@ function diffScores(prev: Court | null, next: Court): ScoreboardHighlight | unde
  * Cada actualización compara el marcador con el anterior y resalta brevemente
  * las celdas que han cambiado (punto/juego/set) para dar feedback visual.
  *
+ * Si la fuente informa del estado de su conexión (`isStatusReporting`), el
+ * marcador se suscribe también a él y pinta un aviso «conectando»/«sin datos»
+ * mientras la API no responde, retirándolo al recuperarse (ver #103). Las fuentes
+ * locales (mock) no reportan estado y se muestran siempre como disponibles.
+ *
  * @param source  Fuente de datos de la pista.
  * @param options Colores de equipo del overlay (coherentes con el 3D).
  * @returns Un objeto con el elemento `el` y `stop()` para cancelar la suscripción.
@@ -235,18 +273,40 @@ export function mountScoreboard(
   container.className = 'scoreboard-mount';
 
   let prev: Court | null = null;
+  // Últimos valores conocidos: cada render usa el `Court` y el estado actuales,
+  // se dispare por un cambio de datos o por un cambio de conexión.
+  let court = source.getCourt();
+  const statusReporting = isStatusReporting(source);
+  let status: ConnectionStatus = statusReporting ? source.getStatus() : 'online';
 
-  const paint = (court: Court): void => {
+  const render = (): void => {
     // Reconstruir el marcador y reemplazar el contenido en un único paso para
     // evitar parpadeos (no hay momento con el contenedor a medio pintar). Al
     // reconstruir el DOM, las clases de resalte disparan su animación al montar.
     const highlight = diffScores(prev, court);
-    container.replaceChildren(createScoreboard(court, { ...options, highlight }));
+    container.replaceChildren(createScoreboard(court, { ...options, highlight, status }));
     prev = court;
   };
 
-  paint(source.getCourt());
-  const unsubscribe = source.subscribe(paint);
+  render();
+  const unsubscribe = source.subscribe((next) => {
+    court = next;
+    render();
+  });
+  // Un cambio de estado re-renderiza con el mismo `Court` (prev === court), así
+  // que no resalta celdas: solo aparece/desaparece el aviso de conexión.
+  const unsubscribeStatus = statusReporting
+    ? source.subscribeStatus((next) => {
+        status = next;
+        render();
+      })
+    : () => {};
 
-  return { el: container, stop: unsubscribe };
+  return {
+    el: container,
+    stop: () => {
+      unsubscribe();
+      unsubscribeStatus();
+    },
+  };
 }

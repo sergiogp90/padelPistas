@@ -210,6 +210,16 @@ respaldo hasta la primera respuesta, así que si la API no está disponible la
 pantalla muestra datos con sentido y el `ApiDataSource` sigue reintentando el
 sondeo (encaminando los errores a `onError`) hasta que la API vuelve.
 
+Ante un fallo, el sondeo **no se detiene**: en vez de un intervalo fijo, el bucle
+se auto-agenda con **reintento por *backoff* exponencial** (`resilience/backoff.ts`,
+tope en `resilience/config.ts`), rápido al principio para un microcorte y
+relajándose si la API sigue caída. Además el `ApiDataSource` expone el **estado de
+conexión** (`connecting`/`online`/`offline`, contrato opcional
+`StatusReportingDataSource`); tras varios fallos seguidos pasa a `offline` y el
+marcador pinta un aviso **«sin datos · reconectando»** legible en la TV
+(`ui/Scoreboard.ts`), que desaparece solo al volver a `online`. Las fuentes mock no
+reportan estado y se muestran siempre disponibles.
+
 *Por qué:* materializa la decisión 1 (origen tras una interfaz) como un
 interruptor de configuración: se despliega con mock y se pasa a datos reales sin
 tocar el 3D ni la UI, con una red de seguridad que evita la pantalla en blanco si

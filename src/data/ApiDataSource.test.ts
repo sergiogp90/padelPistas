@@ -199,6 +199,120 @@ describe('ApiDataSource', () => {
     source.stop();
   });
 
+  it('reintenta con backoff exponencial mientras la API sigue caída', async () => {
+    const fetchFn = vi.fn().mockRejectedValue(new Error('sin red'));
+    const source = new ApiDataSource({
+      url: '/api/courts/1',
+      initialCourt: seedCourt(),
+      intervalMs: 5000,
+      retryBaseMs: 1000,
+      maxBackoffMs: 8000,
+      backoffFactor: 2,
+      fetch: fetchFn,
+    });
+    source.subscribe(vi.fn());
+
+    await vi.advanceTimersByTimeAsync(0); // fallo 1 → reintento en 1000
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000); // fallo 2 → reintento en 2000
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(2000); // fallo 3 → reintento en 4000
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+
+    await vi.advanceTimersByTimeAsync(4000); // fallo 4 → reintento tope 8000
+    expect(fetchFn).toHaveBeenCalledTimes(4);
+
+    await vi.advanceTimersByTimeAsync(8000);
+    expect(fetchFn).toHaveBeenCalledTimes(5);
+
+    source.stop();
+  });
+
+  it('vuelve al intervalo normal tras recuperarse de un fallo', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('sin red'))
+      .mockResolvedValue(okResponse(apiCourt(30)));
+    const source = new ApiDataSource({
+      url: '/api/courts/1',
+      initialCourt: seedCourt(),
+      intervalMs: 5000,
+      retryBaseMs: 1000,
+      fetch: fetchFn,
+    });
+    source.subscribe(vi.fn());
+
+    await vi.advanceTimersByTimeAsync(0); // fallo → reintento en 1000 (backoff)
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000); // éxito → siguiente al intervalo normal
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+
+    // Antes del intervalo normal no vuelve a sondear (ya no está en backoff).
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(4000); // completa los 5000
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+
+    source.stop();
+  });
+
+  it('pasa a offline tras el umbral de fallos y vuelve a online al recuperarse', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('sin red'))
+      .mockRejectedValueOnce(new Error('sin red'))
+      .mockResolvedValue(okResponse(apiCourt(30)));
+    const onStatusChange = vi.fn();
+    const source = new ApiDataSource({
+      url: '/api/courts/1',
+      initialCourt: seedCourt(),
+      intervalMs: 5000,
+      retryBaseMs: 1000,
+      offlineThreshold: 2,
+      onStatusChange,
+      fetch: fetchFn,
+    });
+
+    // Empieza en 'connecting' antes de cualquier respuesta.
+    expect(source.getStatus()).toBe('connecting');
+    source.subscribe(vi.fn());
+
+    await vi.advanceTimersByTimeAsync(0); // fallo 1: aún no llega al umbral
+    expect(source.getStatus()).toBe('connecting');
+
+    await vi.advanceTimersByTimeAsync(1000); // fallo 2: alcanza el umbral → offline
+    expect(source.getStatus()).toBe('offline');
+
+    await vi.advanceTimersByTimeAsync(2000); // recupera → online
+    expect(source.getStatus()).toBe('online');
+
+    expect(onStatusChange).toHaveBeenCalledWith('offline');
+    expect(onStatusChange).toHaveBeenCalledWith('online');
+    source.stop();
+  });
+
+  it('notifica los cambios de estado a subscribeStatus', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse(apiCourt(15)));
+    const source = new ApiDataSource({
+      url: '/api/courts/1',
+      initialCourt: seedCourt(),
+      fetch: fetchFn,
+    });
+    const statusListener = vi.fn();
+    const unsubscribe = source.subscribeStatus(statusListener);
+    source.subscribe(vi.fn());
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(statusListener).toHaveBeenCalledWith('online');
+
+    unsubscribe();
+    source.stop();
+  });
+
   it('trata una respuesta HTTP no-ok como error', async () => {
     const fetchFn = vi
       .fn()

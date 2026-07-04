@@ -6,6 +6,15 @@ tiempo real durante un torneo, varias pistas con sus jugadores y marcadores.
 Construido con [Three.js](https://threejs.org/), [Vite](https://vitejs.dev/) y
 TypeScript.
 
+## Estructura del repositorio
+
+Este repositorio es un **monorepo**:
+
+- `front/` — la aplicación web (Three.js + Vite + TypeScript).
+- `back/` — la API propia en .NET *(en construcción; ver
+  [ADR 0004](docs/decisions/0004-backend-api-propia-minimal-api-aspire.md))*.
+- `docs/` — documentación transversal (arquitectura, roadmap, ADRs).
+
 ## Requisitos
 
 - [Node.js](https://nodejs.org/) 18 o superior
@@ -13,7 +22,11 @@ TypeScript.
 
 ## Puesta en marcha
 
+El código del front vive en `front/`:
+
 ```bash
+cd front
+
 # Instalar dependencias
 npm install
 
@@ -22,6 +35,8 @@ npm run dev
 ```
 
 ## Scripts disponibles
+
+Se ejecutan desde `front/`:
 
 | Comando           | Descripción                                      |
 | ----------------- | ------------------------------------------------ |

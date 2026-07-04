@@ -13,10 +13,6 @@ dist-ssr
 *.local
 coverage
 
-# Escena de depuración local del avatar (herramienta de desarrollo, fuera del repo)
-avatar-debug.html
-front/src/debug/
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

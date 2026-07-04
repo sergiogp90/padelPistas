@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { PlayerGender } from '../types'
 
 /**
  * Avatar de jugador estilizado (low-poly).
@@ -86,8 +87,9 @@ const SHOE_COLOR = 0xdedede // pies
 const HANDLE_COLOR = 0x1b1b1b // grip (puño) de la pala, oscuro
 
 // --- Género y variantes ------------------------------------------------------
-/** Género del jugador, que selecciona el diseño del avatar. */
-export type PlayerGender = 'male' | 'female'
+// El género del jugador vive en `types` (es un dato de dominio); aquí se
+// reexporta por comodidad, ya que selecciona el diseño del avatar.
+export type { PlayerGender }
 
 // Probabilidad de que un hombre sea calvo. Menor que la de tener pelo, tal como
 // pide el diseño («menor % de ser calvo»).

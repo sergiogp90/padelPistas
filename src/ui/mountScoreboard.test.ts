@@ -27,8 +27,8 @@ function buildCourt(point: 0 | 15 | 30 | 40): Court {
     name: 'Pista Central',
     match: {
       teams: [
-        { players: [{ name: 'Carlos Ruiz' }, { name: 'Miguel Sánchez' }] },
-        { players: [{ name: 'Pablo García' }, { name: 'Javier López' }] },
+        { players: [{ name: 'Carlos Ruiz', gender: 'male' }, { name: 'Miguel Sánchez', gender: 'male' }] },
+        { players: [{ name: 'Pablo García', gender: 'male' }, { name: 'Javier López', gender: 'male' }] },
       ],
       score: {
         currentPoint: [point, 0],

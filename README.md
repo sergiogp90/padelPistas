@@ -46,14 +46,14 @@ Se ejecutan desde `front/`:
 
 ## Fuente de datos (mock ⇄ API)
 
-La app puede leer los datos de un **mock local** (por defecto) o de una **API
-real**, y se elige **por configuración**, sin tocar el código. Ante un valor
-desconocido o un fallo de red, cae con elegancia al mock.
+La app lee los datos de una **API real** (por defecto) o de un **mock local**, y
+se elige **por configuración**, sin tocar el código. El mock solo aparece si se
+pide de forma explícita; en modo `api` **no hay datos mock de respaldo**.
 
 **Por variable de entorno** (recomendado para despliegues). Crea un `.env.local`:
 
 ```bash
-# Fuente: "mock" (por defecto) o "api"
+# Fuente: "api" (por defecto) o "mock"
 VITE_DATA_SOURCE=api
 # Base de la API propia (opcional; por defecto "/api")
 VITE_API_BASE_URL=https://mi-club.example/api
@@ -73,12 +73,15 @@ http://localhost:5173/?source=api
 http://localhost:5173/?source=mock
 ```
 
-> Si no se configura nada, o el valor no se reconoce, se usa el **mock**
-> (comportamiento actual). Si la API no está disponible, cada pista conserva su
-> dato de respaldo (mock) y el sondeo se **reintenta con *backoff* exponencial**
-> hasta que la API vuelve; tras varios fallos seguidos el marcador muestra un
-> aviso **«sin datos · reconectando»** legible en la TV, que se retira solo al
-> recuperarse la conexión (ver [arquitectura](docs/architecture.md)).
+> Si no se configura nada, o el valor no se reconoce, se usa la **API** (la
+> fuente por defecto); el **mock** solo se activa con `VITE_DATA_SOURCE=mock` o
+> `?source=mock`. En modo `api` no hay datos mock de respaldo: si la API está
+> inactiva al arrancar, el listado `GET /courts` se **reintenta con *backoff*
+> exponencial** hasta que responda y el snackbar muestra **«Sin conexión con la
+> API; reintentando conectar…»**; al ponerse operativa se cargan las pistas
+> reales. Una vez cargadas, si una pista pierde la conexión el sondeo se reintenta
+> igual (con backoff) y su marcador muestra **«sin datos · reconectando»** hasta
+> recuperarse (ver [arquitectura](docs/architecture.md)).
 
 ## Documentación
 

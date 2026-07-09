@@ -59,8 +59,11 @@ VITE_DATA_SOURCE=api
 VITE_API_BASE_URL=https://mi-club.example/api
 ```
 
-En modo `api` la app consulta `GET {VITE_API_BASE_URL}/courts/:id` por pista y
-refresca el marcador por *polling* (ver [arquitectura](docs/architecture.md)).
+En modo `api` la app deriva **cuántas pistas hay y sus ids** del listado
+`GET {VITE_API_BASE_URL}/courts` (fuente única de verdad): crea una vista por
+pista devuelta y consulta `GET {VITE_API_BASE_URL}/courts/:id` para refrescar su
+marcador por *polling*. Así no se piden ids que la API no sirve y la rejilla se
+adapta al número real de pistas (ver [arquitectura](docs/architecture.md)).
 
 **Por parámetro de URL** (rápido para una demo, sin reconstruir el build). Tiene
 prioridad sobre la variable de entorno:

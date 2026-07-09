@@ -201,7 +201,7 @@ evolucione su JSON sin arrastrar cambios por el 3D ni la UI —solo se toca el
 adaptador—, y hace el mapeo **puro y testeable** con ejemplos de payload (incluida
 la pista libre, `match: null`), antes incluso de que exista la llamada de red.
 
-### 10. La fuente de datos se elige por configuración (mock ⇄ API) con fallback a mock
+### 10. La fuente de datos se elige por configuración (mock ⇄ API); en modo `api` no hay datos mock de respaldo
 El origen de los datos —`MockDataSource` o `ApiDataSource`— se decide **por
 configuración**, no en el código. Una factoría (`data/createDataSources.ts`)
 construye una fuente por pista según una `DataSourceConfig` que un lector puro
@@ -212,12 +212,18 @@ construye una fuente por pista según una `DataSourceConfig` que un lector puro
   una demo sin reconstruir.
 
 El `apiBaseUrl` sale de `VITE_API_BASE_URL` (por defecto `/api`) y en modo `api`
-cada pista sondea `GET {apiBaseUrl}/courts/:id`. Por defecto —sin config o ante un
-valor desconocido— se usa **mock** (comportamiento actual). Las fuentes de API se
-**siembran con los datos mock** de su pista: ese `Court` es el estado inicial y de
-respaldo hasta la primera respuesta, así que si la API no está disponible la
-pantalla muestra datos con sentido y el `ApiDataSource` sigue reintentando el
-sondeo (encaminando los errores a `onError`) hasta que la API vuelve.
+el número de pistas y sus ids salen del listado `GET {apiBaseUrl}/courts` (fuente
+única de verdad); cada pista sondea luego `GET {apiBaseUrl}/courts/:id`. Por
+defecto —sin config o ante un valor desconocido— se usa **mock**.
+
+**Sin datos mock en modo `api`** (issue #130): las fuentes de API se **siembran
+con el `Court` real** que devuelve el propio listado (estado inicial y de respaldo
+hasta la primera respuesta individual). Si al arrancar el listado no está
+disponible, la factoría **no inventa pistas mock**: reintenta `GET /courts` con
+*backoff* exponencial hasta que la API responda —encaminando cada fallo a
+`onError` para que la TV avise de que se está **reintentando conectar**— y arranca
+con las pistas reales en cuanto llega. Con la app ya en marcha, cada pista conserva
+su último dato real conocido y el `ApiDataSource` sigue sondeando hasta recuperarse.
 
 Ante un fallo, el sondeo **no se detiene**: en vez de un intervalo fijo, el bucle
 se auto-agenda con **reintento por *backoff* exponencial** (`resilience/backoff.ts`,

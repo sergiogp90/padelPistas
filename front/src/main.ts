@@ -12,11 +12,11 @@ import { installGlobalErrorHandlers } from './resilience/globalErrorHandlers'
 import { createRenderWatchdog } from './resilience/renderWatchdog'
 import { ERROR_OVERLAY_TIMEOUT_MS } from './resilience/config'
 
-// Número de pistas del modo mock (y de respaldo si el listado de la API falla).
-// En modo `api` el número real de pistas NO se fija aquí: se deriva del listado
-// `GET /api/courts` (fuente única de verdad), así no se piden ids que la API no
-// sirve (ver issue #123).
-const FALLBACK_COURT_COUNT = 4
+// Número de pistas del modo `mock`. En modo `api` el número real de pistas NO se
+// fija aquí: se deriva del listado `GET /api/courts` (fuente única de verdad), así
+// no se piden ids que la API no sirve (ver issue #123) y no se inventan datos mock
+// cuando la API está inactiva (ver issue #130).
+const MOCK_COURT_COUNT = 4
 
 // Una fuente de datos y una vista por pista. Cada `CourtView` es autocontenida
 // (su escena, su cámara y su marcador); el renderer las dibuja en un único canvas.
@@ -46,26 +46,48 @@ errorNotice.hidden = true
 document.body.appendChild(errorNotice)
 
 let errorNoticeTimer: ReturnType<typeof setTimeout> | undefined
-function flashErrorNotice(message: string): void {
+// Un aviso `sticky` permanece visible hasta que se retire a mano (`clearErrorNotice`);
+// uno normal se auto-oculta tras `ERROR_OVERLAY_TIMEOUT_MS`. El fijo sirve para el
+// arranque en modo `api`: mientras no llega el listado no hay pistas que pintar, así
+// que el «reintentando conectar» debe quedarse en pantalla en vez de parpadear.
+function flashErrorNotice(message: string, sticky = false): void {
   errorNotice.textContent = message
   errorNotice.hidden = false
   clearTimeout(errorNoticeTimer)
+  if (sticky) return
   errorNoticeTimer = setTimeout(() => {
     errorNotice.hidden = true
   }, ERROR_OVERLAY_TIMEOUT_MS)
 }
 
-const sources = await createDataSources(FALLBACK_COURT_COUNT, {
+function clearErrorNotice(): void {
+  clearTimeout(errorNoticeTimer)
+  errorNotice.hidden = true
+}
+
+// Mientras se resuelve el listado inicial en modo `api` aún no hay pistas en
+// pantalla: el aviso de reconexión se muestra fijo. Una vez llegan los datos (o en
+// modo `mock`, que resuelve al instante) los fallos posteriores son transitorios.
+let awaitingInitialData = dataSourceConfig.kind === 'api'
+
+const sources = await createDataSources(MOCK_COURT_COUNT, {
   config: dataSourceConfig,
-  // Ante un fallo de red, el `ApiDataSource` conserva el último estado (mock de
-  // respaldo) y sigue sondeando; solo asomamos un aviso discreto y no invasivo.
+  // En modo `api` NO hay datos mock de respaldo (issue #130): si la API está
+  // inactiva se reintenta y se avisa de que se está intentando reconectar. Cuando
+  // la API ya sirvió datos, cada pista conserva su último estado real conocido y
+  // sigue sondeando; basta con un aviso discreto y no invasivo.
   onError: (error) => {
-    console.warn('[dataSource] error al leer de la API; se usa el dato de respaldo', error)
-    flashErrorNotice('Sin conexión con la API; mostrando datos de respaldo…')
+    console.warn('[dataSource] sin conexión con la API; reintentando conectar', error)
+    flashErrorNotice('Sin conexión con la API; reintentando conectar…', awaitingInitialData)
   },
 })
 
-// Número real de pistas: en mock es `FALLBACK_COURT_COUNT`; en api, el tamaño
+// Ya tenemos el listado (datos reales): retiramos el aviso fijo del arranque y a
+// partir de aquí los fallos de sondeo solo muestran avisos transitorios.
+awaitingInitialData = false
+clearErrorNotice()
+
+// Número real de pistas: en mock es `MOCK_COURT_COUNT`; en api, el tamaño
 // del listado devuelto por `GET /api/courts`.
 const courtCount = sources.length
 const teamColors = assignTeamColors(courtCount)

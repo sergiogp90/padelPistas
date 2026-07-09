@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDataSources } from './createDataSources';
 import { ApiDataSource } from './ApiDataSource';
 import { MockDataSource } from './MockDataSource';
-import { createMockCourts } from './createMockCourts';
 import { mapApiCourt } from './mapApiCourt';
 import type { ApiCourt } from './apiContract';
 
@@ -142,47 +141,76 @@ describe('createDataSources', () => {
       sources.forEach((s) => (s as ApiDataSource).stop());
     });
 
-    it('degrada a mock si el listado falla (red caída)', async () => {
-      const fetchFn = vi.fn().mockRejectedValue(new Error('sin red'));
+    it('NO usa datos mock si el listado falla: reintenta hasta que la API responde', async () => {
+      // La API está inactiva al arrancar (falla 2 veces) y luego se pone
+      // operativa. No debe inventarse ninguna pista mock: se espera y se cargan
+      // las pistas reales en cuanto el listado llega (issue #130).
+      const listed = [apiCourt(1, 'Pista Central'), apiCourt(2, 'Pista Norte')];
+      let listCalls = 0;
+      const fetchFn = vi.fn().mockImplementation((url: string) => {
+        if (url === '/api/courts') {
+          listCalls++;
+          return listCalls < 3
+            ? Promise.reject(new Error('sin red'))
+            : Promise.resolve(okResponse(listed));
+        }
+        const match = /\/courts\/(\d+)$/.exec(url);
+        const found = match && listed.find((c) => c.id === Number(match[1]));
+        return Promise.resolve(found ? okResponse(found) : errorResponse(404));
+      });
       const onError = vi.fn();
-      const sources = await createDataSources(3, {
+
+      const promise = createDataSources(3, {
         config: { kind: 'api', apiBaseUrl: '/api' },
         fetch: fetchFn,
         onError,
+        listRetryBaseMs: 10,
+        listMaxBackoffMs: 100,
       });
+      // Deja correr los reintentos con *backoff* (10ms + 20ms) hasta el éxito.
+      await vi.advanceTimersByTimeAsync(1000);
+      const sources = await promise;
 
-      expect(onError).toHaveBeenCalledOnce();
-      expect(sources).toHaveLength(3);
-      expect(sources.every((s) => s instanceof MockDataSource)).toBe(true);
-      expect(sources.map((s) => s.getCourt())).toEqual(createMockCourts(3));
+      // Un aviso por cada intento fallido; nunca una fuente mock.
+      expect(onError).toHaveBeenCalledTimes(2);
+      expect(sources.every((s) => s instanceof ApiDataSource)).toBe(true);
+      expect(sources.some((s) => s instanceof MockDataSource)).toBe(false);
+      expect(sources.map((s) => s.getCourt().id)).toEqual([1, 2]);
+
+      sources.forEach((s) => (s as ApiDataSource).stop());
     });
 
-    it('degrada a mock si el listado responde HTTP no-OK', async () => {
-      const fetchFn = vi.fn().mockResolvedValue(errorResponse(500));
+    it('reintenta también ante HTTP no-OK y ante un listado vacío (sin mock)', async () => {
+      // Primer intento 500, segundo intento lista vacía, tercero OK: los dos
+      // primeros son fallos que se reintentan, no un fallback a mock.
+      const listed = [apiCourt(1)];
+      let listCalls = 0;
+      const fetchFn = vi.fn().mockImplementation((url: string) => {
+        if (url === '/api/courts') {
+          listCalls++;
+          if (listCalls === 1) return Promise.resolve(errorResponse(500));
+          if (listCalls === 2) return Promise.resolve(okResponse([]));
+          return Promise.resolve(okResponse(listed));
+        }
+        return Promise.resolve(okResponse(listed[0]));
+      });
       const onError = vi.fn();
-      const sources = await createDataSources(2, {
+
+      const promise = createDataSources(2, {
         config: { kind: 'api', apiBaseUrl: '/api' },
         fetch: fetchFn,
         onError,
+        listRetryBaseMs: 10,
+        listMaxBackoffMs: 100,
       });
+      await vi.advanceTimersByTimeAsync(1000);
+      const sources = await promise;
 
-      expect(onError).toHaveBeenCalledOnce();
-      expect(sources).toHaveLength(2);
-      expect(sources.every((s) => s instanceof MockDataSource)).toBe(true);
-    });
+      expect(onError).toHaveBeenCalledTimes(2);
+      expect(sources.every((s) => s instanceof ApiDataSource)).toBe(true);
+      expect(sources.map((s) => s.getCourt().id)).toEqual([1]);
 
-    it('degrada a mock si el listado llega vacío', async () => {
-      const fetchFn = routedFetch([]);
-      const onError = vi.fn();
-      const sources = await createDataSources(2, {
-        config: { kind: 'api', apiBaseUrl: '/api' },
-        fetch: fetchFn,
-        onError,
-      });
-
-      expect(onError).toHaveBeenCalledOnce();
-      expect(sources).toHaveLength(2);
-      expect(sources.every((s) => s instanceof MockDataSource)).toBe(true);
+      sources.forEach((s) => (s as ApiDataSource).stop());
     });
 
     it('encamina los errores de sondeo a onError sin romper (respaldo al dato del listado)', async () => {

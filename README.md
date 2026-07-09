@@ -47,8 +47,9 @@ Se ejecutan desde `front/`:
 ## Fuente de datos (mock ⇄ API)
 
 La app puede leer los datos de un **mock local** (por defecto) o de una **API
-real**, y se elige **por configuración**, sin tocar el código. Ante un valor
-desconocido o un fallo de red, cae con elegancia al mock.
+real**, y se elige **por configuración**, sin tocar el código. Ante un valor de
+configuración desconocido se usa el mock; en modo `api`, en cambio, **no se
+inventan datos mock**: si la API está inactiva se reintenta la conexión.
 
 **Por variable de entorno** (recomendado para despliegues). Crea un `.env.local`:
 
@@ -73,12 +74,15 @@ http://localhost:5173/?source=api
 http://localhost:5173/?source=mock
 ```
 
-> Si no se configura nada, o el valor no se reconoce, se usa el **mock**
-> (comportamiento actual). Si la API no está disponible, cada pista conserva su
-> dato de respaldo (mock) y el sondeo se **reintenta con *backoff* exponencial**
-> hasta que la API vuelve; tras varios fallos seguidos el marcador muestra un
-> aviso **«sin datos · reconectando»** legible en la TV, que se retira solo al
-> recuperarse la conexión (ver [arquitectura](docs/architecture.md)).
+> Si no se configura nada, o el valor no se reconoce, se usa el **mock**. En modo
+> `api` **no hay datos mock de respaldo**: si al arrancar la API está inactiva, el
+> listado de pistas se **reintenta con *backoff* exponencial** hasta que responda,
+> mostrando entretanto un aviso de **«reintentando conectar»** en la TV; en cuanto
+> la API se pone operativa se cargan las pistas reales. Si la API cae con la app ya
+> en marcha, cada pista conserva su **último dato real conocido** y sigue
+> sondeando; tras varios fallos seguidos el marcador muestra un aviso **«sin datos
+> · reconectando»**, que se retira solo al recuperarse la conexión (ver
+> [arquitectura](docs/architecture.md)).
 
 ## Documentación
 

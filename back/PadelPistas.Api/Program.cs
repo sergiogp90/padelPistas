@@ -39,3 +39,7 @@ app.MapGet("/api/courts/{id:int}", async (int id, ICourtStore store, Cancellatio
 // app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// Marcador para que WebApplicationFactory<Program> pueda referenciar el arranque
+// con top-level statements desde el proyecto de tests. No cambia el comportamiento.
+public partial class Program { }

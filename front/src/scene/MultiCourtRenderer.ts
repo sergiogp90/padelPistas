@@ -92,9 +92,12 @@ export class MultiCourtRenderer {
   // Limitador de FPS: acota la tasa de pintado al objetivo con paso de tiempo
   // independiente de la tasa real (ver `FrameLimiter`).
   private readonly limiter: FrameLimiter
-  // Reloj para medir el tiempo entre fotogramas y animar de forma independiente
-  // de los FPS (ver `CourtView.update`).
-  private readonly clock = new THREE.Clock()
+  // Temporizador para medir el tiempo entre fotogramas y animar de forma
+  // independiente de los FPS (ver `CourtView.update`). `Timer` sustituye a
+  // `Clock` (deprecado): se actualiza una vez por fotograma con `update()`
+  // —pasándole la marca de tiempo de `requestAnimationFrame`— y luego se
+  // consulta el paso de tiempo con `getDelta()`.
+  private readonly timer = new THREE.Timer()
 
   constructor(options: MultiCourtRendererOptions = {}) {
     this.onContextLost = options.onContextLost
@@ -228,23 +231,26 @@ export class MultiCourtRenderer {
   }
 
   // Arranca el bucle de `rAF` si procede: solo si se pidió animar (`wantRunning`),
-  // no hay ya un bucle vivo y la página está visible. Reinicia reloj y limitador
-  // para que el primer fotograma tras (re)anudar no arrastre el tiempo transcurrido
-  // parado: se reanuda sin saltos.
+  // no hay ya un bucle vivo y la página está visible. Reinicia temporizador y
+  // limitador para que el primer fotograma tras (re)anudar no arrastre el tiempo
+  // transcurrido parado: se reanuda sin saltos.
   private resume(): void {
     if (this.running || !this.wantRunning || this.visibility.hidden) return
     this.running = true
-    this.clock.start()
+    this.timer.reset()
     this.limiter.reset()
-    const loop = (): void => {
+    const loop = (timestamp?: number): void => {
       // Reprograma el siguiente frame ANTES de dibujar para que una excepción al
       // actualizar/pintar no rompa la cadena de `rAF`; el fotograma no llega a
       // contarse, así que el watchdog detecta el estancamiento y reanima el bucle.
       this.frameHandle = requestAnimationFrame(loop)
+      // Actualiza el temporizador con la marca de tiempo de `rAF` (una vez por
+      // fotograma) para poder consultar el paso con `getDelta()`.
+      this.timer.update(timestamp)
       // Cap de FPS: el limitador decide si toca pintar y con qué paso de tiempo.
       // Los disparos sobrantes se saltan (no cuentan como fotograma) para acotar
       // el coste al objetivo sin alterar la velocidad de la animación.
-      const step = this.limiter.tick(this.clock.getDelta())
+      const step = this.limiter.tick(this.timer.getDelta())
       if (step === null) return
       // Envuelve solo el fotograma que SÍ se pinta: así el panel mide los FPS
       // efectivos (con el cap, ~TARGET_FPS) y el tiempo real de actualizar+dibujar,

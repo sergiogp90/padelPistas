@@ -34,7 +34,7 @@ export class FrameLimiter {
   }
 
   /**
-   * Registra `delta` segundos transcurridos (p. ej. `THREE.Clock.getDelta()`) y
+   * Registra `delta` segundos transcurridos (p. ej. `THREE.Timer.getDelta()`) y
    * decide si toca pintar. Debe llamarse en CADA disparo de `rAF` para que el
    * tiempo se contabilice de forma continua.
    *

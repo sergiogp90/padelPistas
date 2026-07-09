@@ -8,3 +8,6 @@ publish/
 
 # Carpeta de Visual Studio
 .vs/
+
+# Resultados de test y cobertura
+TestResults/

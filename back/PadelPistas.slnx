@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="PadelPistas.Api/PadelPistas.Api.csproj" />
+  <Project Path="PadelPistas.Api.Tests/PadelPistas.Api.Tests.csproj" />
   <Project Path="PadelPistas.AppHost/PadelPistas.AppHost.csproj" />
   <Project Path="PadelPistas.ServiceDefaults/PadelPistas.ServiceDefaults.csproj" />
 </Solution>

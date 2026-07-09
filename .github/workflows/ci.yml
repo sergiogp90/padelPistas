@@ -3,18 +3,35 @@ name: CI
 on:
   push:
     branches: [main]
-    paths:
-      - front/**
-      - .github/workflows/ci.yml
   pull_request:
     branches: [main]
-    paths:
-      - front/**
-      - .github/workflows/ci.yml
 
 jobs:
+  # Detecta si el PR/push toca el front. El workflow SIEMPRE se dispara (sin
+  # filtro paths) para que el check requerido pueda reportar; el trabajo pesado
+  # solo corre si hay cambios relevantes.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      front: ${{ steps.filter.outputs.front }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            front:
+              - front/**
+              - .github/workflows/ci.yml
+
   test:
     name: Tests
+    needs: changes
+    if: needs.changes.outputs.front == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -45,3 +62,22 @@ jobs:
           name: coverage-report
           path: front/coverage/
           if-no-files-found: ignore
+
+  # Gate: corre SIEMPRE y es el check que marcas como requerido. Pasa si el
+  # job de tests se saltó (no se tocó el front) o fue correcto; falla solo si
+  # los tests fallaron o se cancelaron.
+  frontend-ci:
+    name: Frontend CI
+    needs: [changes, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check result
+        run: |
+          result="${{ needs.test.result }}"
+          echo "test result: $result"
+          if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+            echo "Los tests del frontend no pasaron."
+            exit 1
+          fi
+          echo "OK (correcto o sin cambios en el frontend)."

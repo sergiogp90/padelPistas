@@ -3,18 +3,35 @@ name: CI Backend
 on:
   push:
     branches: [main]
-    paths:
-      - back/**
-      - .github/workflows/ci-backend.yml
   pull_request:
     branches: [main]
-    paths:
-      - back/**
-      - .github/workflows/ci-backend.yml
 
 jobs:
+  # Detecta si el PR/push toca el backend. El workflow SIEMPRE se dispara (sin
+  # filtro paths) para que el check requerido pueda reportar; el trabajo pesado
+  # solo corre si hay cambios relevantes.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      back: ${{ steps.filter.outputs.back }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            back:
+              - back/**
+              - .github/workflows/ci-backend.yml
+
   build-test:
     name: Build & Test
+    needs: changes
+    if: needs.changes.outputs.back == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -59,3 +76,22 @@ jobs:
           name: backend-coverage-report
           path: back/TestResults/
           if-no-files-found: ignore
+
+  # Gate: corre SIEMPRE y es el check que marcas como requerido. Pasa si el
+  # build-test se saltó (no se tocó el back) o fue correcto; falla solo si
+  # build-test falló o se canceló.
+  backend-ci:
+    name: Backend CI
+    needs: [changes, build-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check result
+        run: |
+          result="${{ needs.build-test.result }}"
+          echo "build-test result: $result"
+          if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+            echo "El build/test del backend no pasó."
+            exit 1
+          fi
+          echo "OK (correcto o sin cambios en el backend)."

@@ -12,8 +12,11 @@ import { installGlobalErrorHandlers } from './resilience/globalErrorHandlers'
 import { createRenderWatchdog } from './resilience/renderWatchdog'
 import { ERROR_OVERLAY_TIMEOUT_MS } from './resilience/config'
 
-// Número de pistas a mostrar en la rejilla multipista.
-const COURT_COUNT = 4
+// Número de pistas del modo mock (y de respaldo si el listado de la API falla).
+// En modo `api` el número real de pistas NO se fija aquí: se deriva del listado
+// `GET /api/courts` (fuente única de verdad), así no se piden ids que la API no
+// sirve (ver issue #123).
+const FALLBACK_COURT_COUNT = 4
 
 // Una fuente de datos y una vista por pista. Cada `CourtView` es autocontenida
 // (su escena, su cámara y su marcador); el renderer las dibuja en un único canvas.
@@ -23,9 +26,36 @@ const COURT_COUNT = 4
 // La fuente (mock por defecto ⇄ API real) se elige por configuración —variable
 // `VITE_DATA_SOURCE` o parámetro `?source=`— sin tocar el resto de la app: todas
 // cumplen el contrato `DataSource` (ver `data/createDataSources.ts` y README).
+//
+// En modo `api`, `createDataSources` pide primero `GET /api/courts` para conocer
+// el número de pistas y sus ids, por lo que es asíncrona (se resuelve con
+// `await` de módulo). El número de pistas se deriva de `sources.length`, de modo
+// que la rejilla, la rotación y los colores se adaptan al total real.
 const dataSourceConfig = resolveDataSourceConfig()
 console.info(`[dataSource] fuente activa: "${dataSourceConfig.kind}"`)
-const sources = createDataSources(COURT_COUNT, {
+
+// Overlay de error discreto: una banda en la esquina inferior izquierda que se
+// muestra unos segundos ante un incidente y se retira sola, para no dejar texto
+// fijo sobre la imagen de la TV. Es no invasivo y opcional (solo aparece si algo
+// falla). Se prepara ANTES de pedir los datos porque el arranque en modo `api`
+// usa `await`: si el listado inicial falla, `onError` se dispara aún suspendidos
+// en ese `await`, así que `flashErrorNotice` y su estado deben existir ya.
+const errorNotice = document.createElement('div')
+errorNotice.className = 'error-notice'
+errorNotice.hidden = true
+document.body.appendChild(errorNotice)
+
+let errorNoticeTimer: ReturnType<typeof setTimeout> | undefined
+function flashErrorNotice(message: string): void {
+  errorNotice.textContent = message
+  errorNotice.hidden = false
+  clearTimeout(errorNoticeTimer)
+  errorNoticeTimer = setTimeout(() => {
+    errorNotice.hidden = true
+  }, ERROR_OVERLAY_TIMEOUT_MS)
+}
+
+const sources = await createDataSources(FALLBACK_COURT_COUNT, {
   config: dataSourceConfig,
   // Ante un fallo de red, el `ApiDataSource` conserva el último estado (mock de
   // respaldo) y sigue sondeando; solo asomamos un aviso discreto y no invasivo.
@@ -34,7 +64,11 @@ const sources = createDataSources(COURT_COUNT, {
     flashErrorNotice('Sin conexión con la API; mostrando datos de respaldo…')
   },
 })
-const teamColors = assignTeamColors(COURT_COUNT)
+
+// Número real de pistas: en mock es `FALLBACK_COURT_COUNT`; en api, el tamaño
+// del listado devuelto por `GET /api/courts`.
+const courtCount = sources.length
+const teamColors = assignTeamColors(courtCount)
 const views = sources.map(
   (source, i) => new CourtView(source, {}, { teamColors: teamColors[i] }),
 )
@@ -114,25 +148,6 @@ app.start()
 
 // Red de seguridad para el funcionamiento desatendido (ver `src/resilience`).
 //
-// Overlay de error discreto: una banda en la esquina inferior izquierda que se
-// muestra unos segundos ante un incidente y se retira sola, para no dejar texto
-// fijo sobre la imagen de la TV. Es no invasivo y opcional (solo aparece si algo
-// falla).
-const errorNotice = document.createElement('div')
-errorNotice.className = 'error-notice'
-errorNotice.hidden = true
-document.body.appendChild(errorNotice)
-
-let errorNoticeTimer: ReturnType<typeof setTimeout> | undefined
-function flashErrorNotice(message: string): void {
-  errorNotice.textContent = message
-  errorNotice.hidden = false
-  clearTimeout(errorNoticeTimer)
-  errorNoticeTimer = setTimeout(() => {
-    errorNotice.hidden = true
-  }, ERROR_OVERLAY_TIMEOUT_MS)
-}
-
 // Captura global de errores: registra excepciones no controladas y promesas
 // rechazadas sin `catch` sin romper la app, y las asoma en el overlay.
 installGlobalErrorHandlers({
@@ -165,4 +180,4 @@ startKioskMode()
 // completa → global, cambiando cada 30 s (ver `ROTATION_INTERVAL_MS`). Emite ya
 // la vista inicial (global), por lo que dibuja la rejilla de arranque, y se pausa
 // sola cuando la página deja de estar visible.
-createViewRotation({ courtCount: COURT_COUNT, onChange: renderView })
+createViewRotation({ courtCount, onChange: renderView })

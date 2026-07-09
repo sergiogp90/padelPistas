@@ -10,16 +10,18 @@
 // entorno real. Por defecto se leen de `import.meta.env`, `location.search` y
 // `console.warn`.
 //
-// Fallback a mock: cualquier valor desconocido o ausente cae a `mock`, de modo
-// que un error de configuración nunca deja la app sin datos (ver criterios de la
-// issue #102).
+// Fuente por defecto `api`: sin configuración —o ante un valor desconocido— se
+// usa la **API real**, no el mock. El mock solo aparece si se pide de forma
+// explícita (`VITE_DATA_SOURCE=mock` o `?source=mock`), como red de seguridad
+// para desarrollo y demos (ver issue #130: en producción nunca debe verse mock
+// salvo configuración explícita).
 
 /** Origen de los datos: simulación local (`mock`) o API propia (`api`). */
 export type DataSourceKind = 'mock' | 'api';
 
 /** Configuración resuelta que decide qué `DataSource` construir. */
 export interface DataSourceConfig {
-  /** Fuente elegida; `mock` por defecto. */
+  /** Fuente elegida; `api` por defecto. */
   kind: DataSourceKind;
   /** Base de la API propia (sin barra final), p. ej. `/api`. */
   apiBaseUrl: string;
@@ -44,7 +46,8 @@ export const DEFAULT_API_BASE_URL = '/api';
  * Precedencia: `?source=` (URL) **por encima de** `VITE_DATA_SOURCE` (entorno),
  * porque el parámetro de URL sirve para alternar puntualmente en una demo sin
  * reconstruir el build. Si ninguno está presente o el valor no se reconoce, se
- * usa `mock` (comportamiento actual y red de seguridad).
+ * usa `api` (la API real es el modo por defecto; el mock solo con petición
+ * explícita).
  */
 export function resolveDataSourceConfig(
   input: ResolveDataSourceConfigInput = {},
@@ -63,21 +66,21 @@ export function resolveDataSourceConfig(
   };
 }
 
-/** Valida el valor crudo y cae a `mock` (avisando) si no se reconoce. */
+/** Valida el valor crudo y cae a `api` (avisando) si no se reconoce. */
 function normalizeKind(
   raw: string | undefined | null,
   warn: (message: string) => void,
 ): DataSourceKind {
-  if (raw == null || raw.trim() === '') return 'mock';
+  if (raw == null || raw.trim() === '') return 'api';
 
   const value = raw.trim().toLowerCase();
   if (value === 'mock' || value === 'api') return value;
 
   warn(
-    `[dataSource] Fuente de datos desconocida "${raw}"; se usa "mock" por defecto. ` +
+    `[dataSource] Fuente de datos desconocida "${raw}"; se usa "api" por defecto. ` +
       `Valores válidos: "mock" o "api".`,
   );
-  return 'mock';
+  return 'api';
 }
 
 /** Normaliza la base de la API: recorta espacios y la barra final sobrante. */

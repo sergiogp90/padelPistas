@@ -11,9 +11,9 @@ function env(values: Record<string, string | undefined> = {}): ImportMetaEnv {
 }
 
 describe('resolveDataSourceConfig', () => {
-  it('usa mock por defecto cuando no hay configuración', () => {
+  it('usa api por defecto cuando no hay configuración', () => {
     const config = resolveDataSourceConfig({ env: env(), search: '' });
-    expect(config.kind).toBe('mock');
+    expect(config.kind).toBe('api');
     expect(config.apiBaseUrl).toBe(DEFAULT_API_BASE_URL);
   });
 
@@ -23,6 +23,22 @@ describe('resolveDataSourceConfig', () => {
       search: '',
     });
     expect(config.kind).toBe('api');
+  });
+
+  it('usa mock solo si se pide explícitamente (env var)', () => {
+    const config = resolveDataSourceConfig({
+      env: env({ VITE_DATA_SOURCE: 'mock' }),
+      search: '',
+    });
+    expect(config.kind).toBe('mock');
+  });
+
+  it('usa mock solo si se pide explícitamente (?source=mock)', () => {
+    const config = resolveDataSourceConfig({
+      env: env(),
+      search: '?source=mock',
+    });
+    expect(config.kind).toBe('mock');
   });
 
   it('normaliza el valor (espacios y mayúsculas)', () => {
@@ -41,37 +57,37 @@ describe('resolveDataSourceConfig', () => {
     expect(config.kind).toBe('api');
   });
 
-  it('cae a mock (avisando) ante un valor desconocido', () => {
+  it('cae a api (avisando) ante un valor desconocido', () => {
     const warn = vi.fn();
     const config = resolveDataSourceConfig({
       env: env({ VITE_DATA_SOURCE: 'postgres' }),
       search: '',
       warn,
     });
-    expect(config.kind).toBe('mock');
+    expect(config.kind).toBe('api');
     expect(warn).toHaveBeenCalledOnce();
   });
 
-  it('cae a mock ante un ?source= desconocido, sin mirar la env', () => {
+  it('cae a api ante un ?source= desconocido, sin mirar la env', () => {
     const warn = vi.fn();
     const config = resolveDataSourceConfig({
-      env: env({ VITE_DATA_SOURCE: 'api' }),
+      env: env({ VITE_DATA_SOURCE: 'mock' }),
       search: '?source=nope',
       warn,
     });
-    // El query gana; al no reconocerse, fallback a mock (no vuelve a la env).
-    expect(config.kind).toBe('mock');
+    // El query gana; al no reconocerse, fallback a api (no vuelve a la env).
+    expect(config.kind).toBe('api');
     expect(warn).toHaveBeenCalledOnce();
   });
 
-  it('trata la cadena vacía como ausencia (mock, sin aviso)', () => {
+  it('trata la cadena vacía como ausencia (api, sin aviso)', () => {
     const warn = vi.fn();
     const config = resolveDataSourceConfig({
       env: env({ VITE_DATA_SOURCE: '   ' }),
       search: '',
       warn,
     });
-    expect(config.kind).toBe('mock');
+    expect(config.kind).toBe('api');
     expect(warn).not.toHaveBeenCalled();
   });
 

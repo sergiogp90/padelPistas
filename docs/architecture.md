@@ -16,7 +16,7 @@ src/
   types/    Tipos del dominio (Court, Match, Team, Player, Score)
   data/     Fuentes de datos tras la interfaz DataSource (mock ⇄ API real):
               DataSource          contrato del origen de datos (+ estado de conexión)
-              MockDataSource      simulación local de un partido (por defecto)
+              MockDataSource      simulación local de un partido (solo modo mock explícito)
               apiContract         DTO de la API propia (tipos Api*, formato de cable)
               mapApiCourt         adaptador puro DTO -> dominio
               ApiDataSource       polling de la API propia con backoff y estado online/offline
@@ -201,23 +201,28 @@ evolucione su JSON sin arrastrar cambios por el 3D ni la UI —solo se toca el
 adaptador—, y hace el mapeo **puro y testeable** con ejemplos de payload (incluida
 la pista libre, `match: null`), antes incluso de que exista la llamada de red.
 
-### 10. La fuente de datos se elige por configuración (mock ⇄ API) con fallback a mock
-El origen de los datos —`MockDataSource` o `ApiDataSource`— se decide **por
+### 10. La fuente de datos se elige por configuración (API por defecto ⇄ mock explícito)
+El origen de los datos —`ApiDataSource` o `MockDataSource`— se decide **por
 configuración**, no en el código. Una factoría (`data/createDataSources.ts`)
 construye una fuente por pista según una `DataSourceConfig` que un lector puro
 (`data/dataSourceConfig.ts`) resuelve de:
 
-- **`VITE_DATA_SOURCE`** (`mock` | `api`) — fijada en build/despliegue.
+- **`VITE_DATA_SOURCE`** (`api` | `mock`) — fijada en build/despliegue.
 - **`?source=`** en la URL — **con prioridad** sobre la env var, para alternar en
   una demo sin reconstruir.
 
 El `apiBaseUrl` sale de `VITE_API_BASE_URL` (por defecto `/api`) y en modo `api`
 cada pista sondea `GET {apiBaseUrl}/courts/:id`. Por defecto —sin config o ante un
-valor desconocido— se usa **mock** (comportamiento actual). Las fuentes de API se
-**siembran con los datos mock** de su pista: ese `Court` es el estado inicial y de
-respaldo hasta la primera respuesta, así que si la API no está disponible la
-pantalla muestra datos con sentido y el `ApiDataSource` sigue reintentando el
-sondeo (encaminando los errores a `onError`) hasta que la API vuelve.
+valor desconocido— se usa **`api`**: el **mock** solo se activa si se pide de forma
+explícita (`VITE_DATA_SOURCE=mock` / `?source=mock`), como red de seguridad para
+desarrollo y demos (issue #130). En modo `api` **no hay datos mock de respaldo**:
+si el listado `GET {apiBaseUrl}/courts` no está disponible al arrancar (API
+inactiva), la factoría lo **reintenta con *backoff* exponencial** —encaminando cada
+fallo a `onError`— hasta que responda, y solo entonces construye las pistas
+**reales**; el snackbar muestra entretanto «Sin conexión con la API; reintentando
+conectar…». Cada `ApiDataSource` se **siembra con la pista del listado**: ese
+`Court` es el estado inicial y de respaldo hasta la primera respuesta del sondeo
+individual.
 
 Ante un fallo, el sondeo **no se detiene**: en vez de un intervalo fijo, el bucle
 se auto-agenda con **reintento por *backoff* exponencial** (`resilience/backoff.ts`,
@@ -230,9 +235,9 @@ marcador pinta un aviso **«sin datos · reconectando»** legible en la TV
 reportan estado y se muestran siempre disponibles.
 
 *Por qué:* materializa la decisión 1 (origen tras una interfaz) como un
-interruptor de configuración: se despliega con mock y se pasa a datos reales sin
-tocar el 3D ni la UI, con una red de seguridad que evita la pantalla en blanco si
-la red o la configuración fallan. El lector y la factoría son puros e inyectables,
+interruptor de configuración: en producción se sirve la **API real** (defecto) sin
+que se cuele mock, y el mock queda disponible para desarrollo/demos con un flag,
+todo sin tocar el 3D ni la UI. El lector y la factoría son puros e inyectables,
 probados aislados (`dataSourceConfig.test.ts`, `createDataSources.test.ts`).
 
 ---

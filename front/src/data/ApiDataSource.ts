@@ -89,7 +89,11 @@ export class ApiDataSource implements StatusReportingDataSource {
   constructor(options: ApiDataSourceOptions) {
     this.url = options.url;
     this.intervalMs = options.intervalMs ?? 5000;
-    this.fetchFn = options.fetch ?? globalThis.fetch;
+    // `fetch` nativo debe invocarse con `this === globalThis`; al guardarlo en una
+    // propiedad y llamarlo como `this.fetchFn(...)` perdería ese enlace y lanzaría
+    // "Illegal invocation". Por eso se enlaza. Un `fetch` inyectado (tests) es una
+    // función normal y no lo necesita, pero enlazarlo también es inocuo.
+    this.fetchFn = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.onError = options.onError ?? (() => {});
     this.onStatusChange = options.onStatusChange ?? (() => {});
     this.offlineThreshold = options.offlineThreshold ?? API_OFFLINE_THRESHOLD;

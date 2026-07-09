@@ -57,6 +57,7 @@ describe('ApiDataSource', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -68,6 +69,34 @@ describe('ApiDataSource', () => {
     });
     expect(typeof source.getCourt).toBe('function');
     expect(typeof source.subscribe).toBe('function');
+  });
+
+  it('usa el fetch global enlazado a globalThis (evita "Illegal invocation")', async () => {
+    // Reproduce la restricción del navegador: el `fetch` nativo exige que se le
+    // invoque con `this === globalThis`; llamarlo "suelto" lanza "Illegal
+    // invocation". Como aquí NO se inyecta `fetch`, `ApiDataSource` toma el
+    // global y debe enlazarlo para no romper al llamarlo como `this.fetchFn(...)`.
+    const nativeFetch = vi.fn(function (this: unknown) {
+      if (this !== globalThis) {
+        throw new TypeError(
+          "Failed to execute 'fetch' on 'Window': Illegal invocation",
+        );
+      }
+      return Promise.resolve(okResponse(apiCourt(15)));
+    });
+    vi.stubGlobal('fetch', nativeFetch);
+
+    // Sin `fetch` inyectado: se usa el global (ver constructor).
+    const source = new ApiDataSource({ url: '/api/courts/1', initialCourt: seedCourt() });
+    source.subscribe(vi.fn());
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(nativeFetch).toHaveBeenCalledWith('/api/courts/1');
+    // Si el fetch se hubiera llamado sin enlazar, habría lanzado y el estado
+    // seguiría en 'connecting' con el court de respaldo; al enlazarlo, funciona.
+    expect(source.getStatus()).toBe('online');
+    expect(source.getCourt().name).toBe('Pista Central');
+    source.stop();
   });
 
   it('getCourt() devuelve el estado inicial antes del primer fetch', () => {

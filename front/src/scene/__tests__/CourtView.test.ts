@@ -383,4 +383,80 @@ describe('CourtView', () => {
 
     expect(team0Point(view.scoreboardEl)).toBe('0')
   })
+
+  /** Todos los elementos animados de la pista (jugadores, pelota y sombras). */
+  const sceneActors = (view: CourtView) => [
+    ...view.players,
+    ...view.playerShadows,
+    view.ball,
+    view.ballShadow,
+  ]
+
+  describe('ocupación de la pista', () => {
+    const emptyCourt = (name = 'Pista Vacía'): Court => ({ id: 1, name, match: null })
+
+    it('con partido en curso la pista se muestra ocupada (jugadores y pelota visibles)', () => {
+      const { source } = createFakeSource(buildCourt('Pista Central'))
+      const view = new CourtView(source)
+
+      expect(view.occupied).toBe(true)
+      for (const actor of sceneActors(view)) expect(actor.visible).toBe(true)
+    })
+
+    it('arranca vacía si la fuente no tiene partido: oculta jugadores y pelota', () => {
+      const { source } = createFakeSource(emptyCourt())
+      const view = new CourtView(source)
+
+      expect(view.occupied).toBe(false)
+      for (const actor of sceneActors(view)) expect(actor.visible).toBe(false)
+    })
+
+    it('quita a los jugadores peloteando cuando el backend informa de pista vacía', () => {
+      const { source, emit } = createFakeSource(buildCourt('Pista Sur'))
+      const view = new CourtView(source)
+
+      expect(view.occupied).toBe(true)
+
+      emit(emptyCourt('Pista Sur'))
+
+      expect(view.occupied).toBe(false)
+      for (const actor of sceneActors(view)) expect(actor.visible).toBe(false)
+    })
+
+    it('repuebla la pista si vuelve a haber partido en curso', () => {
+      const { source, emit } = createFakeSource(emptyCourt('Pista Norte'))
+      const view = new CourtView(source)
+
+      expect(view.occupied).toBe(false)
+
+      emit(buildCourt('Pista Norte'))
+
+      expect(view.occupied).toBe(true)
+      for (const actor of sceneActors(view)) expect(actor.visible).toBe(true)
+    })
+
+    it('no anima la pista vacía (update no mueve a los jugadores)', () => {
+      const { source } = createFakeSource(emptyCourt())
+      const view = new CourtView(source, {}, { scenario: 0 })
+
+      const bases = view.players.map((p) => p.position.clone())
+      for (let i = 0; i < 20; i++) view.update(0.05)
+
+      view.players.forEach((player, i) => {
+        expect(player.position.x).toBe(bases[i].x)
+        expect(player.position.z).toBe(bases[i].z)
+      })
+    })
+
+    it('deja de reaccionar a la ocupación tras dispose()', () => {
+      const { source, emit } = createFakeSource(buildCourt('Pista Este'))
+      const view = new CourtView(source)
+
+      view.dispose()
+      emit(emptyCourt('Pista Este'))
+
+      // Tras dispose no se procesan más cambios: sigue marcada como ocupada.
+      expect(view.occupied).toBe(true)
+    })
+  })
 })

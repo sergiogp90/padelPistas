@@ -163,7 +163,15 @@ export class CourtView {
   /** Overlay HTML del marcador. Insértalo en el DOM (p. ej. `document.body`). */
   readonly scoreboardEl: HTMLElement
 
+  /**
+   * ¿Hay un partido en curso en la pista? Si el backend informa de una pista
+   * vacía (`match: null`), pasa a `false` y la escena se muestra sin jugadores
+   * ni pelota (ver `setOccupied`). Refleja el último estado recibido de la fuente.
+   */
+  occupied = true
+
   private readonly stopScoreboard: () => void
+  private readonly stopOccupancy: () => void
 
   constructor(source: DataSource, cell: CourtCell = {}, options: CourtViewOptions = {}) {
     this.court = new PadelCourt()
@@ -258,6 +266,31 @@ export class CourtView {
     const scoreboard = mountScoreboard(source, { teamColors: scoreboardColors })
     this.scoreboardEl = scoreboard.el
     this.stopScoreboard = scoreboard.stop
+
+    // Ocupación de la pista: se retira a los jugadores peloteando (y la pelota)
+    // cuando el backend informa de una pista vacía (`match: null`), de modo que
+    // se vea la pista sola; al volver a haber partido, se repueblan. Se aplica ya
+    // el estado inicial de la fuente y se reacciona a cada cambio posterior.
+    this.setOccupied(match !== null)
+    this.stopOccupancy = source.subscribe((court) =>
+      this.setOccupied(court.match !== null),
+    )
+  }
+
+  /**
+   * Refleja en la escena si la pista tiene un partido en curso: con partido se
+   * muestran los jugadores peloteando (la pelota y sus sombras); sin partido
+   * (pista vacía según el backend) se ocultan para que se vea la pista sola.
+   *
+   * No se destruyen los objetos, solo se conmuta su visibilidad: así, si vuelve
+   * a haber partido, la pista se repuebla al instante sin reconstruir la vista.
+   */
+  private setOccupied(occupied: boolean): void {
+    this.occupied = occupied
+    for (const player of this.players) player.visible = occupied
+    for (const shadow of this.playerShadows) shadow.visible = occupied
+    this.ball.visible = occupied
+    this.ballShadow.visible = occupied
   }
 
   /**
@@ -279,6 +312,8 @@ export class CourtView {
    * @param delta Segundos transcurridos desde el fotograma anterior.
    */
   update(delta: number): void {
+    // Pista vacía (sin partido): no hay a quién animar; se muestra la pista sola.
+    if (!this.occupied) return
     for (const player of this.players) player.update(delta)
     // La pelota se actualiza tras los jugadores para leer sus posiciones ya
     // avanzadas en este fotograma.
@@ -302,8 +337,9 @@ export class CourtView {
     material.opacity = CONTACT_SHADOW_BASE_OPACITY * (1 - k * 0.7)
   }
 
-  /** Cancela la suscripción del marcador. Llamar al retirar la vista. */
+  /** Cancela las suscripciones (marcador y ocupación). Llamar al retirar la vista. */
   dispose(): void {
     this.stopScoreboard()
+    this.stopOccupancy()
   }
 }

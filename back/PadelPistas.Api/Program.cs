@@ -1,7 +1,20 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using PadelPistas.Api.Admin;
+using PadelPistas.Api.Auth;
 using PadelPistas.Api.Data;
+using PadelPistas.Api.Endpoints;
 using PadelPistas.Api.Storage;
+
+// Utilidad de línea de comandos para generar el hash de una contraseña de admin:
+//   dotnet run --project PadelPistas.Api -- hash "tu-contraseña"
+// Sale antes de construir la app web (no arranca el servidor).
+if (args is ["hash", var passwordToHash])
+{
+    Console.WriteLine(AdminPasswordHasher.Hash(passwordToHash));
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +39,37 @@ var connectionString = builder.Configuration.GetConnectionString("PadelPistas")
 builder.Services.AddDbContext<PadelPistasDbContext>(options => options.UseSqlite(connectionString));
 builder.Services.AddScoped<ICourtStore, EfCourtStore>();
 
+// Escritura del panel de administración (separada del contrato de lectura).
+builder.Services.AddScoped<ICourtAdminService, CourtAdminService>();
+
+// Administrador único por configuración (sección "Admin"): sin tabla de usuarios en M1.
+builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.SectionName));
+
+// Autenticación por cookie. Al servirse todo desde un mismo origen, la cookie es
+// same-origin y basta con SameSite=Lax. Ante peticiones no autenticadas a la API
+// se responde 401/403 en vez de redirigir a una página de login.
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "padelpistas.auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
+        options.Events.OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
 // Aplica las migraciones al arrancar: crea la base de datos SQLite si no existe y
@@ -38,6 +82,9 @@ if (!app.Environment.IsEnvironment("Testing"))
     db.Database.Migrate();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 // Endpoints de salud de Aspire (/health y /alive en desarrollo).
 app.MapDefaultEndpoints();
 
@@ -46,6 +93,10 @@ app.MapGet("/api/courts", (ICourtStore store, CancellationToken ct) => store.Get
 
 app.MapGet("/api/courts/{id:int}", async (int id, ICourtStore store, CancellationToken ct) =>
     await store.GetByIdAsync(id, ct) is { } court ? Results.Ok(court) : Results.NotFound());
+
+// Autenticación del administrador y escritura del panel (protegida).
+app.MapAuthEndpoints();
+app.MapAdminEndpoints();
 
 // "Un solo origen" (ADR 0004): en un paso posterior este mismo host servirá el
 // dist/ del front desde wwwroot, y el build de Vite se copiará ahí. Se deja

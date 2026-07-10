@@ -13,6 +13,11 @@ dist-ssr
 *.local
 coverage
 
+# Base de datos SQLite local (se recrea al arrancar con las migraciones)
+*.db
+*.db-shm
+*.db-wal
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

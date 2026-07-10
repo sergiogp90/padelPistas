@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using PadelPistas.Api.Data;
 using PadelPistas.Api.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,11 +18,25 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
 
-// Almacén tras la interfaz: hoy en memoria; mañana SqliteCourtStore/Azure cambiando
-// solo esta línea (ver ADR 0004). Singleton porque el estado sembrado es compartido.
-builder.Services.AddSingleton<ICourtStore, InMemoryCourtStore>();
+// Persistencia real detrás de la interfaz (ADR 0004): EF Core sobre SQLite en
+// desarrollo, con proveedor intercambiable a Azure SQL/Postgres más adelante sin
+// tocar los endpoints. InMemoryCourtStore se conserva como fallback y para tests.
+var connectionString = builder.Configuration.GetConnectionString("PadelPistas")
+    ?? "Data Source=padelpistas.db";
+builder.Services.AddDbContext<PadelPistasDbContext>(options => options.UseSqlite(connectionString));
+builder.Services.AddScoped<ICourtStore, EfCourtStore>();
 
 var app = builder.Build();
+
+// Aplica las migraciones al arrancar: crea la base de datos SQLite si no existe y
+// siembra las pistas iniciales. En el entorno de tests el almacén se sustituye y no
+// hay base de datos que migrar, así que se omite.
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<PadelPistasDbContext>();
+    db.Database.Migrate();
+}
 
 // Endpoints de salud de Aspire (/health y /alive en desarrollo).
 app.MapDefaultEndpoints();

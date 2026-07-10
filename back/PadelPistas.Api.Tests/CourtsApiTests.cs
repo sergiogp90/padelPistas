@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,17 +12,29 @@ using PadelPistas.Api.Storage;
 namespace PadelPistas.Api.Tests;
 
 // Tests de integración: levantan la API real en memoria y le pegan peticiones
-// HTTP. Prueban routing + serialización + contrato, no el almacén; por eso
-// sobreviven al cambio a SQLite u otra base de datos más adelante.
-public class CourtsApiTests : IClassFixture<WebApplicationFactory<Program>>
+// HTTP. Prueban routing + serialización + contrato, no el almacén; por eso usan
+// el entorno "Testing" (Program.cs omite ahí la migración de la base de datos) y
+// sustituyen el almacén por InMemoryCourtStore, cuya semilla conocida (3 pistas,
+// una libre, otra con ventaja) es la que estos tests dan por hecha.
+public class CourtsApiTests : IClassFixture<CourtsApiTests.Factory>
 {
+    public sealed class Factory : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+                services.Replace(ServiceDescriptor.Singleton<ICourtStore, InMemoryCourtStore>()));
+        }
+    }
+
     // Mismo naming policy que Program.cs; los enums traen su conversor por atributo.
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
 
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly Factory _factory;
 
-    public CourtsApiTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public CourtsApiTests(Factory factory) => _factory = factory;
 
     [Fact]
     public async Task GET_courts_devuelve_200_y_json()

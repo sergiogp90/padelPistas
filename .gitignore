@@ -18,6 +18,10 @@ coverage
 *.db-shm
 *.db-wal
 
+# Estáticos de las SPAs copiados a wwwroot al publicar (generados)
+back/PadelPistas.Api/wwwroot/*
+!back/PadelPistas.Api/wwwroot/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

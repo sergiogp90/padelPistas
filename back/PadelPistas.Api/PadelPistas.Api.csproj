@@ -21,4 +21,22 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- Un solo origen: al publicar, compila el front y el admin y copia sus dist a
+       wwwroot (front en la raíz, admin en /admin). Solo se ejecuta en 'dotnet
+       publish' (no en build/test de CI), así que requiere Node solo al desplegar. -->
+  <Target Name="BuildSpa" BeforeTargets="Publish">
+    <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)/../../front" />
+    <Exec Command="npm run build" WorkingDirectory="$(MSBuildProjectDirectory)/../../front" />
+    <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)/../../admin" />
+    <Exec Command="npm run build" WorkingDirectory="$(MSBuildProjectDirectory)/../../admin" />
+    <ItemGroup>
+      <FrontDist Include="$(MSBuildProjectDirectory)/../../front/dist/**/*" />
+      <AdminDist Include="$(MSBuildProjectDirectory)/../../admin/dist/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FrontDist)"
+          DestinationFiles="@(FrontDist->'$(MSBuildProjectDirectory)/wwwroot/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(AdminDist)"
+          DestinationFiles="@(AdminDist->'$(MSBuildProjectDirectory)/wwwroot/admin/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
 </Project>

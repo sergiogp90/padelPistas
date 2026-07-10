@@ -82,6 +82,13 @@ if (!app.Environment.IsEnvironment("Testing"))
     db.Database.Migrate();
 }
 
+// "Un solo origen" (ADR 0004): sirve los estáticos de wwwroot. El front se copia en
+// la raíz (se ve en "/") y el admin en wwwroot/admin (se ve en "/admin"); ver la
+// diana MSBuild "BuildSpa" del .csproj, que los compila y copia al publicar. En
+// desarrollo se usan los dev servers de Vite y wwwroot está vacío (no pasa nada).
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -98,12 +105,11 @@ app.MapGet("/api/courts/{id:int}", async (int id, ICourtStore store, Cancellatio
 app.MapAuthEndpoints();
 app.MapAdminEndpoints();
 
-// "Un solo origen" (ADR 0004): en un paso posterior este mismo host servirá el
-// dist/ del front desde wwwroot, y el build de Vite se copiará ahí. Se deja
-// preparado y comentado hasta montar ese pipeline de build.
-// app.UseDefaultFiles();
-// app.UseStaticFiles();
-// app.MapFallbackToFile("index.html");
+// Fallback de las SPAs (enrutado en cliente): cualquier ruta que no sea un fichero
+// ni un endpoint cae en el index.html correspondiente. La regla de /admin es más
+// específica y gana sobre la del front. No afecta a /api ni a los estáticos.
+app.MapFallbackToFile("/admin/{*path:nonfile}", "admin/index.html");
+app.MapFallbackToFile("{*path:nonfile}", "index.html");
 
 app.Run();
 

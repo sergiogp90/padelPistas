@@ -7,14 +7,15 @@ on:
     branches: [main]
 
 jobs:
-  # Detecta si el PR/push toca el front. El workflow SIEMPRE se dispara (sin
-  # filtro paths) para que el check requerido pueda reportar; el trabajo pesado
+  # Detecta si el PR/push toca el front o el admin. El workflow SIEMPRE se dispara
+  # (sin filtro paths) para que el check requerido pueda reportar; el trabajo pesado
   # solo corre si hay cambios relevantes.
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
     outputs:
       front: ${{ steps.filter.outputs.front }}
+      admin: ${{ steps.filter.outputs.admin }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,9 +28,12 @@ jobs:
             front:
               - front/**
               - .github/workflows/ci.yml
+            admin:
+              - admin/**
+              - .github/workflows/ci.yml
 
   test:
-    name: Tests
+    name: Front tests
     needs: changes
     if: needs.changes.outputs.front == 'true'
     runs-on: ubuntu-latest
@@ -63,21 +67,54 @@ jobs:
           path: front/coverage/
           if-no-files-found: ignore
 
-  # Gate: corre SIEMPRE y es el check que marcas como requerido. Pasa si el
-  # job de tests se saltó (no se tocó el front) o fue correcto; falla solo si
-  # los tests fallaron o se cancelaron.
+  admin-test:
+    name: Admin build & tests
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: admin
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+  # Gate: corre SIEMPRE y es el check que marcas como requerido. Pasa si los jobs
+  # de front y admin se saltaron (no se tocaron) o fueron correctos; falla solo si
+  # alguno falló o se canceló.
   frontend-ci:
     name: Frontend CI
-    needs: [changes, test]
+    needs: [changes, test, admin-test]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check result
         run: |
-          result="${{ needs.test.result }}"
-          echo "test result: $result"
-          if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
-            echo "Los tests del frontend no pasaron."
-            exit 1
-          fi
-          echo "OK (correcto o sin cambios en el frontend)."
+          front="${{ needs.test.result }}"
+          admin="${{ needs.admin-test.result }}"
+          echo "front tests: $front | admin build&tests: $admin"
+          for result in "$front" "$admin"; do
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              echo "El CI de frontend/admin no pasó."
+              exit 1
+            fi
+          done
+          echo "OK (correcto o sin cambios relevantes)."

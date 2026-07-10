@@ -1,3 +1,4 @@
+using System.Text.Json;
 using PadelPistas.Api.Storage;
 
 namespace PadelPistas.Api.Tests;
@@ -32,12 +33,18 @@ public abstract class CourtStoreContractTests
     {
         var store = CreateStore();
 
+        // ApiCourt es un DTO de cable con arrays anidados: su igualdad de valor real
+        // es la de su JSON, no la del record (que compararía los arrays por referencia
+        // y solo coincidiría si el almacén reutiliza las mismas instancias).
         foreach (var court in await store.GetAllAsync())
         {
             var byId = await store.GetByIdAsync(court.Id);
-            Assert.Equal(court, byId);
+            Assert.Equal(Serialize(court), Serialize(byId));
         }
     }
+
+    private static string Serialize(object? value) =>
+        JsonSerializer.Serialize(value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 }
 
 // Los tres tests de arriba corren automáticamente contra InMemoryCourtStore.

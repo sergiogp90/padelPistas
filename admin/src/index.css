@@ -1,0 +1,289 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Fuentes: en el proyecto de referencia (Next.js) las inyectaba next/font como
+   --font-bricolage / --font-dm-mono. Aquí (Vite) las cargamos por <link> en
+   index.html y declaramos esas mismas variables para que @theme inline resuelva. */
+:root {
+  --font-bricolage: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-dm-mono: "DM Mono", ui-monospace, monospace;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Brand tokens — paper / clay / ink
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* Paper — cremas cálidas */
+  --paper-50: #faf7f2;
+  --paper-100: #f2ebdd;
+  --paper-200: #e5dbc5;
+  --paper-300: #c9bca0;
+  --paper-400: #99907a;
+  --paper-500: #6f6754;
+  --paper-600: #4f4839;
+  --paper-700: #322d22;
+  --paper-800: #1f1b14;
+  --paper-900: #14110b;
+
+  /* Clay — primary */
+  --clay-50: #fcf3ee;
+  --clay-100: #f8e0d2;
+  --clay-200: #f1bfa4;
+  --clay-300: #e69874;
+  --clay-400: #d9744c;
+  --clay-500: #c4592f;
+  --clay-600: #a84620;
+  --clay-700: #82351a;
+  --clay-800: #5f2814;
+  --clay-900: #3f1b0e;
+
+  /* Ink */
+  --ink-500: #15243a;
+  --ink-700: #0b1626;
+  --ink-900: #060b16;
+
+  /* Semantic */
+  --success: #2f7d4e;
+  --success-soft: #e5f1e9;
+  --warning: #b8821a;
+  --warning-soft: #faeec7;
+  --danger: #b83a2f;
+  --danger-soft: #fadfd9;
+  --info: #2d5da8;
+  --info-soft: #dce6f4;
+
+  /* shadcn semantic — modo claro */
+  --background: var(--paper-50);
+  --foreground: var(--paper-900);
+  --card: #ffffff;
+  --card-foreground: var(--paper-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--paper-900);
+  --primary: var(--clay-500);
+  --primary-foreground: #ffffff;
+  --secondary: var(--paper-100);
+  --secondary-foreground: var(--paper-800);
+  --muted: var(--paper-100);
+  --muted-foreground: var(--paper-500);
+  --accent: var(--paper-100);
+  --accent-foreground: var(--paper-900);
+  --destructive: var(--danger);
+  --border: var(--paper-200);
+  --input: var(--paper-200);
+  --ring: var(--clay-500);
+
+  --radius: 0.625rem;
+
+  --chart-1: var(--clay-500);
+  --chart-2: var(--ink-500);
+  --chart-3: var(--paper-500);
+  --chart-4: var(--success);
+  --chart-5: var(--warning);
+  --sidebar: var(--paper-50);
+  --sidebar-foreground: var(--paper-900);
+  --sidebar-primary: var(--clay-500);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--paper-100);
+  --sidebar-accent-foreground: var(--paper-800);
+  --sidebar-border: var(--paper-200);
+  --sidebar-ring: var(--clay-500);
+}
+
+.dark {
+  --background: var(--paper-900);
+  --foreground: var(--paper-50);
+  --card: var(--paper-800);
+  --card-foreground: var(--paper-50);
+  --popover: var(--paper-800);
+  --popover-foreground: var(--paper-50);
+  --primary: var(--clay-400);
+  --primary-foreground: var(--paper-900);
+  --secondary: var(--paper-700);
+  --secondary-foreground: var(--paper-50);
+  --muted: var(--paper-800);
+  --muted-foreground: var(--paper-300);
+  --accent: var(--paper-700);
+  --accent-foreground: var(--paper-50);
+  --destructive: #e87a6e;
+  --border: var(--paper-700);
+  --input: var(--paper-700);
+  --ring: var(--clay-400);
+
+  --sidebar: var(--paper-900);
+  --sidebar-foreground: var(--paper-50);
+  --sidebar-primary: var(--clay-400);
+  --sidebar-primary-foreground: var(--paper-900);
+  --sidebar-accent: var(--paper-800);
+  --sidebar-accent-foreground: var(--paper-50);
+  --sidebar-border: var(--paper-700);
+  --sidebar-ring: var(--clay-400);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Tailwind v4 theme — expone tokens como utilities
+   ───────────────────────────────────────────────────────────── */
+
+@theme inline {
+  /* Brand scales */
+  --color-paper-50: var(--paper-50);
+  --color-paper-100: var(--paper-100);
+  --color-paper-200: var(--paper-200);
+  --color-paper-300: var(--paper-300);
+  --color-paper-400: var(--paper-400);
+  --color-paper-500: var(--paper-500);
+  --color-paper-600: var(--paper-600);
+  --color-paper-700: var(--paper-700);
+  --color-paper-800: var(--paper-800);
+  --color-paper-900: var(--paper-900);
+
+  --color-clay-50: var(--clay-50);
+  --color-clay-100: var(--clay-100);
+  --color-clay-200: var(--clay-200);
+  --color-clay-300: var(--clay-300);
+  --color-clay-400: var(--clay-400);
+  --color-clay-500: var(--clay-500);
+  --color-clay-600: var(--clay-600);
+  --color-clay-700: var(--clay-700);
+  --color-clay-800: var(--clay-800);
+  --color-clay-900: var(--clay-900);
+
+  --color-ink-500: var(--ink-500);
+  --color-ink-700: var(--ink-700);
+  --color-ink-900: var(--ink-900);
+
+  /* Semantic */
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /* shadcn semantic */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Tipografía: Bricolage Grotesque + DM Mono via next/font */
+  --font-sans:
+    var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    var(--font-dm-mono), ui-monospace, monospace;
+  --font-display:
+    var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+
+  /* Radii */
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Base
+   ───────────────────────────────────────────────────────────── */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    /* @apply font-sans usa la utility de Tailwind, que SÍ resuelve la fuente.
+       NO usar `var(--font-sans)` directo: las vars de @theme inline no existen
+       como CSS variables runtime, solo como tokens build-time. */
+    @apply font-sans antialiased;
+    font-size: 16px;
+    font-feature-settings:
+      "ss01" 1,
+      "ss02" 1,
+      "cv11" 1;
+  }
+  body {
+    @apply bg-background text-foreground text-base;
+    text-rendering: optimizeLegibility;
+  }
+  /* Tabular numbers para datos */
+  table tbody,
+  time,
+  code,
+  kbd,
+  [data-slot="badge"] {
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: var(--clay-200);
+    color: var(--clay-900);
+  }
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Componentes utilitarios firma del sistema
+   ───────────────────────────────────────────────────────────── */
+
+@layer components {
+  /* Card de sección con acento clay en focus-within.
+     La sección activa muestra un trazo clay-500 a la izquierda. */
+  .card-seccion {
+    @apply relative rounded-xl border border-border bg-card shadow-sm transition-colors;
+  }
+  .card-seccion::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    /* var(--clay-500) sí existe (definido en :root). var(--color-clay-500) NO,
+       porque vive en @theme inline (build-time only). */
+    background: var(--clay-500);
+    border-top-left-radius: 0.875rem;
+    border-bottom-left-radius: 0.875rem;
+    opacity: 0;
+    transition: opacity 200ms ease;
+    pointer-events: none;
+  }
+  .card-seccion:hover::before {
+    opacity: 0.4;
+  }
+  .card-seccion:focus-within::before {
+    opacity: 1;
+  }
+}

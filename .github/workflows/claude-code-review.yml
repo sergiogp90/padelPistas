@@ -36,8 +36,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # TEMPORAL (diagnóstico): mostrar el error real del run. Revertir.
-          show_full_output: true
           # Permite que el workflow se ejecute cuando lo dispara la cuenta-bot
           # de Claude (por defecto la acción rechaza actores de tipo Bot).
           allowed_bots: "claude"

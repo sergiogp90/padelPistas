@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, CalendarRange, ClipboardList, LayoutGrid, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, CalendarRange, ClipboardList, LayoutGrid, Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -143,10 +143,20 @@ export function TorneoDetallePage() {
               torneo.categorias.map((categoria) => (
                 <TableRow key={categoria.id}>
                   <TableCell>
-                    <Badge variant="outline">{etiquetaCategoria(categoria)}</Badge>
+                    <Link to={`/torneos/${torneo.id}/categorias/${categoria.id}`} title="Ver inscripciones">
+                      <Badge variant="outline">{etiquetaCategoria(categoria)}</Badge>
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        render={<Link to={`/torneos/${torneo.id}/categorias/${categoria.id}`} />}
+                        variant="ghost"
+                        size="icon-sm"
+                        title="Inscripciones"
+                      >
+                        <Users />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"

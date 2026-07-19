@@ -6,6 +6,18 @@ import { ApiError } from '@/api/client'
  * si no, el mensaje por defecto.
  */
 export function mensajeError(err: unknown, porDefecto: string): string {
-  if (err instanceof ApiError) return err.message || porDefecto
-  return porDefecto
+  if (!(err instanceof ApiError)) return porDefecto
+  return desentrecomillar(err.message) || porDefecto
+}
+
+/** Los endpoints devuelven el texto como JSON (`"mensaje"`): fuera comillas. */
+function desentrecomillar(mensaje: string): string {
+  if (mensaje.startsWith('"') && mensaje.endsWith('"')) {
+    try {
+      return String(JSON.parse(mensaje))
+    } catch {
+      // no era JSON válido: se muestra tal cual
+    }
+  }
+  return mensaje
 }

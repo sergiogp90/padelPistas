@@ -59,3 +59,36 @@ export interface Torneo {
 
 /** Cuerpo de alta/edición de un torneo (el servidor valida las mismas reglas). */
 export type GuardarTorneo = Omit<Torneo, 'id' | 'categorias'>
+
+// ── Jugadores e inscripciones (espejo de back .../Admin/PlayerAdminDtos.cs) ──
+
+export interface Jugador {
+  id: number
+  nombre: string
+  telefonos: string[]
+}
+
+export type InscripcionEstado = 'pendiente' | 'aceptada' | 'rechazada' | 'retirada'
+
+/** Franja disponible de la pareja: día del torneo ('yyyy-MM-dd') y hora (0–23). */
+export interface SlotDisponibilidad {
+  fecha: string
+  hora: number
+}
+
+export interface Inscripcion {
+  id: number
+  categoryId: number
+  jugador1: Jugador
+  jugador2: Jugador
+  estado: InscripcionEstado
+  pagada: boolean
+  disponibilidad: SlotDisponibilidad[]
+}
+
+/** Al inscribir: jugador existente (id) o nuevo inline (nombre [+ telefonos]). */
+export interface JugadorRef {
+  id?: number
+  nombre?: string
+  telefonos?: string[]
+}

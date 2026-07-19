@@ -1,4 +1,16 @@
-import type { ApiCourt, ApiMatch, GuardarTorneo, Torneo, TorneoCategoria, TorneoGenero } from './types'
+import type {
+  ApiCourt,
+  ApiMatch,
+  GuardarTorneo,
+  Inscripcion,
+  InscripcionEstado,
+  Jugador,
+  JugadorRef,
+  SlotDisponibilidad,
+  Torneo,
+  TorneoCategoria,
+  TorneoGenero,
+} from './types'
 
 /** Error de la API con el código HTTP, para distinguir 401 (sesión) del resto. */
 export class ApiError extends Error {
@@ -76,4 +88,22 @@ export const api = {
     }),
   borrarCategoria: (torneoId: number, categoriaId: number) =>
     request<void>(`/admin/tournaments/${torneoId}/categories/${categoriaId}`, { method: 'DELETE' }),
+
+  // Jugadores e inscripciones (requieren sesión).
+  buscarJugadores: (search: string) =>
+    request<Jugador[]>(`/admin/players?search=${encodeURIComponent(search)}`),
+  getInscripciones: (categoriaId: number) =>
+    request<Inscripcion[]>(`/admin/categories/${categoriaId}/registrations`),
+  crearInscripcion: (categoriaId: number, jugador1: JugadorRef, jugador2: JugadorRef) =>
+    request<Inscripcion>(`/admin/categories/${categoriaId}/registrations`, {
+      method: 'POST',
+      body: JSON.stringify({ jugador1, jugador2 }),
+    }),
+  cambiarEstadoInscripcion: (id: number, estado: InscripcionEstado) =>
+    request<void>(`/admin/registrations/${id}/status`, { method: 'PUT', body: JSON.stringify({ estado }) }),
+  cambiarPagoInscripcion: (id: number, pagada: boolean) =>
+    request<void>(`/admin/registrations/${id}/payment`, { method: 'PUT', body: JSON.stringify({ pagada }) }),
+  guardarDisponibilidad: (id: number, slots: SlotDisponibilidad[]) =>
+    request<void>(`/admin/registrations/${id}/availability`, { method: 'PUT', body: JSON.stringify({ slots }) }),
+  borrarInscripcion: (id: number) => request<void>(`/admin/registrations/${id}`, { method: 'DELETE' }),
 }

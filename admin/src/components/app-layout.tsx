@@ -45,6 +45,7 @@ export function AppLayout() {
               Pistas
             </EnlaceNav>
             <EnlaceNav to="/torneos">Torneos</EnlaceNav>
+            <EnlaceNav to="/jugadores">Jugadores</EnlaceNav>
           </nav>
         </div>
         <div className="flex items-center gap-2">

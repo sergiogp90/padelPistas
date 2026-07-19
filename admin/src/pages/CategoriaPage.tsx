@@ -28,7 +28,13 @@ function NombresPareja({ jugador1, jugador2 }: { jugador1: Jugador; jugador2: Ju
   return (
     <div className="flex flex-col">
       <span className="font-medium">
-        {jugador1.nombre} · {jugador2.nombre}
+        <Link to={`/jugadores/${jugador1.id}`} className="hover:underline" title={`Ficha de ${jugador1.nombre}`}>
+          {jugador1.nombre}
+        </Link>
+        {' · '}
+        <Link to={`/jugadores/${jugador2.id}`} className="hover:underline" title={`Ficha de ${jugador2.nombre}`}>
+          {jugador2.nombre}
+        </Link>
       </span>
       <span className="text-xs text-muted-foreground">
         {[...jugador1.telefonos, ...jugador2.telefonos].join(' · ') || 'Sin teléfonos'}

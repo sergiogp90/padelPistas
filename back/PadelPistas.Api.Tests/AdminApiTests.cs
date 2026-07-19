@@ -20,8 +20,9 @@ namespace PadelPistas.Api.Tests;
 // (HandleCookies = true por defecto), así que el login "persiste" en la sesión.
 public class AdminApiTests : IClassFixture<AdminApiTests.Factory>
 {
-    private const string AdminEmail = "admin@test.local";
-    private const string AdminPassword = "secreto";
+    // Compartidas con otras suites que reutilizan esta Factory (p. ej. torneos).
+    internal const string AdminEmail = "admin@test.local";
+    internal const string AdminPassword = "secreto";
 
     public sealed class Factory : WebApplicationFactory<Program>
     {

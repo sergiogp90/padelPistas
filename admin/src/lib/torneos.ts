@@ -1,4 +1,4 @@
-import type { GuardarTorneo } from '@/api/types'
+import type { GuardarTorneo, TorneoCategoria, TorneoGenero } from '@/api/types'
 
 // Lógica del formulario de torneos, separada de la UI para poder testearla:
 // validación (las mismas reglas que aplica el servidor), construcción del cuerpo
@@ -64,4 +64,17 @@ const NIVELES = ['Primera', 'Segunda', 'Tercera', 'Cuarta', 'Quinta', 'Sexta', '
 /** 1 → "Primera", 3 → "Tercera"… (a partir de la octava, "Nivel 9"). */
 export function nombreNivel(nivel: number): string {
   return NIVELES[nivel - 1] ?? `Nivel ${nivel}`
+}
+
+/** Niveles ofrecidos en el selector de categorías (los de nombre conocido). */
+export const NIVELES_DISPONIBLES = NIVELES.map((_, i) => i + 1)
+
+export function nombreGenero(genero: TorneoGenero): string {
+  return genero.charAt(0).toUpperCase() + genero.slice(1)
+}
+
+/** "Tercera B — Masculino" (sin letra mientras la categoría sea única). */
+export function etiquetaCategoria(c: Pick<TorneoCategoria, 'nivel' | 'genero' | 'letra'>): string {
+  const letra = c.letra ? ` ${c.letra}` : ''
+  return `${nombreNivel(c.nivel)}${letra} — ${nombreGenero(c.genero)}`
 }

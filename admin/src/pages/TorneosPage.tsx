@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -88,7 +89,11 @@ export function TorneosPage() {
             ) : (
               torneos.map((torneo) => (
                 <TableRow key={torneo.id}>
-                  <TableCell className="font-medium">{torneo.nombre}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link to={`/torneos/${torneo.id}`} className="hover:underline">
+                      {torneo.nombre}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatearRango(torneo.fechaInicio, torneo.fechaFin)}
                   </TableCell>

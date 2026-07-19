@@ -5,6 +5,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { CourtsPage } from '@/pages/CourtsPage'
 import { TorneosPage } from '@/pages/TorneosPage'
 import { TorneoDetallePage } from '@/pages/TorneoDetallePage'
+import { CategoriaPage } from '@/pages/CategoriaPage'
 
 export function App() {
   return (
@@ -15,6 +16,7 @@ export function App() {
           <Route path="/" element={<CourtsPage />} />
           <Route path="/torneos" element={<TorneosPage />} />
           <Route path="/torneos/:id" element={<TorneoDetallePage />} />
+          <Route path="/torneos/:id/categorias/:categoriaId" element={<CategoriaPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

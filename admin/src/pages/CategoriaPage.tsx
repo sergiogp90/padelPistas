@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, CalendarClock, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
@@ -19,6 +19,7 @@ import { mensajeError } from '@/lib/errores'
 import { etiquetaCategoria } from '@/lib/torneos'
 import { ESTADOS, nombreEstado, varianteEstado } from '@/lib/inscripciones'
 import { InscribirParejaDialog } from './inscripcion-dialogs'
+import { DisponibilidadDialog } from './disponibilidad-dialog'
 
 const selectClass =
   'h-7 rounded-lg border border-input bg-transparent px-2 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
@@ -45,6 +46,7 @@ export function CategoriaPage() {
   const [cargando, setCargando] = useState(true)
   const [noEncontrado, setNoEncontrado] = useState(false)
   const [inscribiendo, setInscribiendo] = useState(false)
+  const [editandoDisponibilidad, setEditandoDisponibilidad] = useState<Inscripcion | null>(null)
 
   const cargar = useCallback(async () => {
     try {
@@ -150,13 +152,14 @@ export function CategoriaPage() {
               <TableHead>Pareja</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Pago</TableHead>
+              <TableHead>Disponibilidad</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {inscripciones.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Sin parejas inscritas todavía.
                 </TableCell>
               </TableRow>
@@ -196,6 +199,19 @@ export function CategoriaPage() {
                     </label>
                   </TableCell>
                   <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="Editar disponibilidad"
+                      onClick={() => setEditandoDisponibilidad(inscripcion)}
+                    >
+                      <CalendarClock />
+                      {inscripcion.disponibilidad.length > 0
+                        ? `${inscripcion.disponibilidad.length} franja${inscripcion.disponibilidad.length === 1 ? '' : 's'}`
+                        : 'Sin marcar'}
+                    </Button>
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
@@ -218,6 +234,12 @@ export function CategoriaPage() {
         open={inscribiendo}
         categoriaId={catId}
         onOpenChange={setInscribiendo}
+        onHecho={cargar}
+      />
+      <DisponibilidadDialog
+        inscripcion={editandoDisponibilidad}
+        torneo={torneo}
+        onOpenChange={(open) => !open && setEditandoDisponibilidad(null)}
         onHecho={cargar}
       />
     </div>

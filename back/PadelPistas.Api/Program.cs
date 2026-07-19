@@ -42,6 +42,8 @@ builder.Services.AddScoped<ICourtStore, EfCourtStore>();
 // Escritura del panel de administración (separada del contrato de lectura).
 builder.Services.AddScoped<ICourtAdminService, CourtAdminService>();
 builder.Services.AddScoped<ITournamentAdminService, TournamentAdminService>();
+builder.Services.AddScoped<IPlayerAdminService, PlayerAdminService>();
+builder.Services.AddScoped<IRegistrationAdminService, RegistrationAdminService>();
 
 // Administrador único por configuración (sección "Admin"): sin tabla de usuarios en M1.
 builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.SectionName));
@@ -106,6 +108,8 @@ app.MapGet("/api/courts/{id:int}", async (int id, ICourtStore store, Cancellatio
 app.MapAuthEndpoints();
 app.MapAdminEndpoints();
 app.MapTournamentAdminEndpoints();
+app.MapPlayerAdminEndpoints();
+app.MapRegistrationAdminEndpoints();
 
 // Fallback de las SPAs (enrutado en cliente): cualquier ruta que no sea un fichero
 // ni un endpoint cae en el index.html correspondiente. La regla de /admin es más

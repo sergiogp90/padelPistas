@@ -86,7 +86,7 @@ public sealed class TournamentAdminService(PadelPistasDbContext db) : ITournamen
         };
         db.Categories.Add(categoria);
         await db.SaveChangesAsync(ct);
-        return ToCategoryResponse(categoria);
+        return categoria.ToResponse();
     }
 
     public async Task<bool> UpdateCategoryAsync(int tournamentId, int categoryId, int nivel, CategoryGender genero, CancellationToken ct = default)
@@ -153,9 +153,6 @@ public sealed class TournamentAdminService(PadelPistasDbContext db) : ITournamen
         t.PistasDisponibles,
         t.Categories
             .OrderBy(c => c.Nivel).ThenBy(c => c.Genero).ThenBy(c => c.Letra)
-            .Select(ToCategoryResponse)
+            .Select(c => c.ToResponse())
             .ToList());
-
-    private static CategoryResponse ToCategoryResponse(Category c) =>
-        new(c.Id, c.Nivel, c.Genero.ToString().ToLowerInvariant(), c.Letra);
 }

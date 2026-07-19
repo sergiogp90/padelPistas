@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/app-layout'
 import { LoginPage } from '@/pages/LoginPage'
 import { CourtsPage } from '@/pages/CourtsPage'
 import { TorneosPage } from '@/pages/TorneosPage'
+import { TorneoDetallePage } from '@/pages/TorneoDetallePage'
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<CourtsPage />} />
           <Route path="/torneos" element={<TorneosPage />} />
+          <Route path="/torneos/:id" element={<TorneoDetallePage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

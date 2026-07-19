@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   construirTorneo,
+  etiquetaCategoria,
   fechaLocal,
   formatearFecha,
   formatearRango,
+  nombreGenero,
   nombreNivel,
   validarTorneo,
   type TorneoFormValues,
@@ -86,5 +88,19 @@ describe('nombreNivel', () => {
 
   it('no se rompe con niveles fuera de la lista', () => {
     expect(nombreNivel(9)).toBe('Nivel 9')
+  })
+})
+
+describe('etiquetaCategoria', () => {
+  it('compone nivel, letra y género', () => {
+    expect(etiquetaCategoria({ nivel: 3, genero: 'masculino', letra: 'B' })).toBe('Tercera B — Masculino')
+  })
+
+  it('omite la letra cuando la categoría es única', () => {
+    expect(etiquetaCategoria({ nivel: 1, genero: 'mixto', letra: null })).toBe('Primera — Mixto')
+  })
+
+  it('capitaliza el género', () => {
+    expect(nombreGenero('femenino')).toBe('Femenino')
   })
 })

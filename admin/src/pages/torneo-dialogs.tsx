@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -13,9 +13,20 @@ import { Input } from '@/components/ui/input'
 import { Campo } from '@/components/ui/campo'
 import { SelectorFecha } from '@/components/ui/selector-fecha'
 import { api } from '@/api/client'
-import type { GuardarTorneo, Torneo } from '@/api/types'
+import type { GuardarTorneo, Torneo, TorneoCategoria, TorneoGenero } from '@/api/types'
 import { mensajeError } from '@/lib/errores'
-import { construirTorneo, fechaLocal, validarTorneo, type TorneoFormValues } from '@/lib/torneos'
+import {
+  NIVELES_DISPONIBLES,
+  construirTorneo,
+  etiquetaCategoria,
+  fechaLocal,
+  nombreNivel,
+  validarTorneo,
+  type TorneoFormValues,
+} from '@/lib/torneos'
+
+const selectClass =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
 /**
  * Alta y edición de un torneo en un mismo diálogo (`torneo === null` es alta).
@@ -176,6 +187,108 @@ export function TorneoDialog({
             </DialogFooter>
           </form>
         )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Alta y edición de una categoría (`categoria === null` es alta). La letra no se
+ * elige aquí: la asigna el servidor según cuántas categorías del mismo nivel y
+ * género existan, y puede cambiar la de una categoría ya creada (la primera pasa
+ * a "A" al aparecer la "B"), por eso `onHecho` debe recargar el torneo entero.
+ */
+export function CategoriaDialog({
+  open,
+  torneoId,
+  categoria,
+  onOpenChange,
+  onHecho,
+}: {
+  open: boolean
+  torneoId: number
+  categoria: TorneoCategoria | null
+  onOpenChange: (open: boolean) => void
+  onHecho: () => void
+}) {
+  const [nivel, setNivel] = useState(3)
+  const [genero, setGenero] = useState<TorneoGenero>('masculino')
+  const [guardando, setGuardando] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setNivel(categoria?.nivel ?? 3)
+      setGenero(categoria?.genero ?? 'masculino')
+    }
+  }, [open, categoria])
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    setGuardando(true)
+    try {
+      if (categoria) {
+        await api.actualizarCategoria(torneoId, categoria.id, nivel, genero)
+        toast.success('Categoría actualizada')
+      } else {
+        const creada = await api.crearCategoria(torneoId, nivel, genero)
+        toast.success(`Categoría ${etiquetaCategoria(creada)} creada`)
+      }
+      onHecho()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error(mensajeError(err, 'No se pudo guardar la categoría'))
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{categoria ? `Editar ${etiquetaCategoria(categoria)}` : 'Nueva categoría'}</DialogTitle>
+          <DialogDescription>
+            La letra (A, B…) se asigna sola cuando hay varias categorías del mismo nivel y género.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Campo label="Nivel" htmlFor="categoria-nivel">
+              <select
+                id="categoria-nivel"
+                className={selectClass}
+                value={nivel}
+                onChange={(e) => setNivel(Number(e.target.value))}
+              >
+                {NIVELES_DISPONIBLES.map((n) => (
+                  <option key={n} value={n}>
+                    {nombreNivel(n)}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+            <Campo label="Género" htmlFor="categoria-genero">
+              <select
+                id="categoria-genero"
+                className={selectClass}
+                value={genero}
+                onChange={(e) => setGenero(e.target.value as TorneoGenero)}
+              >
+                <option value="masculino">Masculino</option>
+                <option value="femenino">Femenino</option>
+                <option value="mixto">Mixto</option>
+              </select>
+            </Campo>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={guardando}>
+              {guardando ? 'Guardando…' : categoria ? 'Guardar cambios' : 'Crear categoría'}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

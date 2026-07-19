@@ -29,3 +29,33 @@ export interface ApiCourt {
   name: string
   match: ApiMatch | null
 }
+
+// ── Torneos (espejo de back .../Admin/TournamentAdminDtos.cs) ────────────────
+// A diferencia del contrato de pistas, estos DTOs son del panel admin y viajan
+// con las propiedades en español. Las fechas de torneo son 'yyyy-MM-dd'; las de
+// inscripción, fecha-hora ISO sin zona ('yyyy-MM-ddTHH:mm:ss').
+
+export type TorneoGenero = 'masculino' | 'femenino' | 'mixto'
+
+export interface TorneoCategoria {
+  id: number
+  /** 1 = Primera, 2 = Segunda, 3 = Tercera… */
+  nivel: number
+  genero: TorneoGenero
+  /** "A", "B"… si hay varias del mismo nivel y género; null si es única. */
+  letra: string | null
+}
+
+export interface Torneo {
+  id: number
+  nombre: string
+  fechaInicio: string
+  fechaFin: string
+  inscripcionApertura: string
+  inscripcionCierre: string
+  pistasDisponibles: number
+  categorias: TorneoCategoria[]
+}
+
+/** Cuerpo de alta/edición de un torneo (el servidor valida las mismas reglas). */
+export type GuardarTorneo = Omit<Torneo, 'id' | 'categorias'>

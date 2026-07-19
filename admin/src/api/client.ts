@@ -1,4 +1,4 @@
-import type { ApiCourt, ApiMatch } from './types'
+import type { ApiCourt, ApiMatch, GuardarTorneo, Torneo, TorneoCategoria, TorneoGenero } from './types'
 
 /** Error de la API con el código HTTP, para distinguir 401 (sesión) del resto. */
 export class ApiError extends Error {
@@ -55,4 +55,25 @@ export const api = {
   clearMatch: (id: number) => request<void>(`/admin/courts/${id}/match`, { method: 'DELETE' }),
   reorder: (orderedIds: number[]) =>
     request<void>('/admin/courts/reorder', { method: 'POST', body: JSON.stringify({ orderedIds }) }),
+
+  // Torneos y categorías (requieren sesión; la lectura también es privada).
+  getTorneos: () => request<Torneo[]>('/admin/tournaments'),
+  getTorneo: (id: number) => request<Torneo>(`/admin/tournaments/${id}`),
+  crearTorneo: (torneo: GuardarTorneo) =>
+    request<Torneo>('/admin/tournaments', { method: 'POST', body: JSON.stringify(torneo) }),
+  actualizarTorneo: (id: number, torneo: GuardarTorneo) =>
+    request<void>(`/admin/tournaments/${id}`, { method: 'PUT', body: JSON.stringify(torneo) }),
+  borrarTorneo: (id: number) => request<void>(`/admin/tournaments/${id}`, { method: 'DELETE' }),
+  crearCategoria: (torneoId: number, nivel: number, genero: TorneoGenero) =>
+    request<TorneoCategoria>(`/admin/tournaments/${torneoId}/categories`, {
+      method: 'POST',
+      body: JSON.stringify({ nivel, genero }),
+    }),
+  actualizarCategoria: (torneoId: number, categoriaId: number, nivel: number, genero: TorneoGenero) =>
+    request<void>(`/admin/tournaments/${torneoId}/categories/${categoriaId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ nivel, genero }),
+    }),
+  borrarCategoria: (torneoId: number, categoriaId: number) =>
+    request<void>(`/admin/tournaments/${torneoId}/categories/${categoriaId}`, { method: 'DELETE' }),
 }

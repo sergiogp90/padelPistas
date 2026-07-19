@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowDown, ArrowUp, Ban, LogOut, Pencil, Plus, Trash2 } from 'lucide-react'
-import { MarcaClub } from '@/components/marca-club'
-import { ModeToggle } from '@/components/mode-toggle'
+import { ArrowDown, ArrowUp, Ban, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -21,7 +18,6 @@ import { CrearPistaDialog, PartidoDialog, RenombrarPistaDialog } from './court-d
 const INTERVALO_REFRESCO_MS = 5000
 
 export function CourtsPage() {
-  const navigate = useNavigate()
   const [courts, setCourts] = useState<ApiCourt[]>([])
   const [cargando, setCargando] = useState(true)
   const [crearAbierto, setCrearAbierto] = useState(false)
@@ -84,33 +80,13 @@ export function CourtsPage() {
     }
   }
 
-  async function salir() {
-    try {
-      await api.logout()
-    } finally {
-      navigate('/login', { replace: true })
-    }
-  }
-
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      <header className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <MarcaClub />
-          <div>
-            <h1 className="font-display text-xl font-semibold tracking-tight">Pistas</h1>
-            <p className="text-sm text-muted-foreground">Configura las pistas y su partido en curso</p>
-          </div>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-xl font-semibold tracking-tight">Pistas</h1>
+          <p className="text-sm text-muted-foreground">Configura las pistas y su partido en curso</p>
         </div>
-        <div className="flex items-center gap-2">
-          <ModeToggle />
-          <Button variant="outline" size="sm" onClick={salir}>
-            <LogOut /> Salir
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex justify-end">
         <Button size="sm" onClick={() => setCrearAbierto(true)}>
           <Plus /> Nueva pista
         </Button>

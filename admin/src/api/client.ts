@@ -2,6 +2,7 @@ import type {
   ApiCourt,
   ApiMatch,
   GuardarTorneo,
+  HistorialJugador,
   Inscripcion,
   InscripcionEstado,
   Jugador,
@@ -91,7 +92,14 @@ export const api = {
 
   // Jugadores e inscripciones (requieren sesión).
   buscarJugadores: (search: string) =>
-    request<Jugador[]>(`/admin/players?search=${encodeURIComponent(search)}`),
+    request<Jugador[]>(search ? `/admin/players?search=${encodeURIComponent(search)}` : '/admin/players'),
+  getJugador: (id: number) => request<Jugador>(`/admin/players/${id}`),
+  getHistorialJugador: (id: number) => request<HistorialJugador>(`/admin/players/${id}/history`),
+  crearJugador: (nombre: string, telefonos: string[]) =>
+    request<Jugador>('/admin/players', { method: 'POST', body: JSON.stringify({ nombre, telefonos }) }),
+  actualizarJugador: (id: number, nombre: string, telefonos: string[]) =>
+    request<void>(`/admin/players/${id}`, { method: 'PUT', body: JSON.stringify({ nombre, telefonos }) }),
+  borrarJugador: (id: number) => request<void>(`/admin/players/${id}`, { method: 'DELETE' }),
   getInscripciones: (categoriaId: number) =>
     request<Inscripcion[]>(`/admin/categories/${categoriaId}/registrations`),
   crearInscripcion: (categoriaId: number, jugador1: JugadorRef, jugador2: JugadorRef) =>

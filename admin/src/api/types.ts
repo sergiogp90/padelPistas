@@ -92,3 +92,27 @@ export interface JugadorRef {
   nombre?: string
   telefonos?: string[]
 }
+
+/** Histórico del jugador: torneos en los que participa y sus partidos. */
+export interface HistorialJugador {
+  id: number
+  nombre: string
+  torneos: HistorialTorneo[]
+}
+
+export interface HistorialTorneo {
+  torneoId: number
+  torneoNombre: string
+  categoria: TorneoCategoria
+  estado: InscripcionEstado
+  partidos: HistorialPartido[]
+}
+
+/** `ganado` es null mientras el partido no tenga ganador. */
+export interface HistorialPartido {
+  id: number
+  fechaHora: string | null
+  resultado: string | null
+  ganado: boolean | null
+  rivales: string[]
+}

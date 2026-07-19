@@ -11,8 +11,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { api, ApiError } from '@/api/client'
+import { api } from '@/api/client'
 import type { ApiCourt, ApiGender, ApiPoint } from '@/api/types'
+import { mensajeError } from '@/lib/errores'
 import {
   PUNTOS,
   construirPartido,
@@ -24,11 +25,6 @@ import {
 
 const selectClass =
   'h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
-
-function mensajeError(err: unknown, porDefecto: string): string {
-  if (err instanceof ApiError) return err.message || porDefecto
-  return porDefecto
-}
 
 function Grupo({ label, children }: { label: string; children: ReactNode }) {
   return (

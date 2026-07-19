@@ -15,4 +15,6 @@ public class Club
     public required string Slug { get; set; }
 
     public ICollection<Court> Courts { get; } = [];
+
+    public ICollection<Tournament> Tournaments { get; } = [];
 }
